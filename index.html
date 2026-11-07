@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bora Junto</title>
+<style>
+:root{--verde:#1f3d2b;--verde2:#2f5a40;--bege:#efe6d4;--bege2:#e2d6bd;--branco:#fff;--texto:#22291f;--erro:#a63d2f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bege);color:var(--texto);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:78px}
+h1,h2,h3{font-family:Georgia,'Times New Roman',serif;margin:0 0 .4em;color:var(--verde)}
+.wrap{max-width:680px;margin:0 auto;padding:16px}
+.hero{background:var(--verde);color:var(--bege);padding:28px 16px 0;overflow:hidden}
+.hero h1{color:var(--bege);font-size:2rem;margin:0}
+.hero p{margin:.3em 0 0;opacity:.85}
+.hero svg{display:block;width:100%;height:70px;margin-top:10px}
+.card{background:var(--branco);border-radius:14px;padding:16px;margin:0 0 14px;border:1px solid var(--bege2)}
+.card h3{font-size:1.2rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chip{background:var(--bege);color:var(--verde);border-radius:99px;padding:2px 10px;font-size:.82rem}
+.meta{color:#5d6657;font-size:.9rem}
+label{display:block;font-weight:600;margin:12px 0 4px;font-size:.92rem}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--bege2);border-radius:10px;font:inherit;background:var(--branco)}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--verde2);outline-offset:1px}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:11px 16px;background:var(--verde);color:var(--bege);font-weight:600}
+button.sec{background:var(--bege);color:var(--verde);border:1px solid var(--verde)}
+button.full{width:100%;margin-top:16px}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.msg{padding:10px 12px;border-radius:10px;margin-top:12px;background:var(--bege);color:var(--verde)}
+.msg.erro{background:#f6dcd6;color:var(--erro)}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--verde);display:flex;padding-bottom:env(safe-area-inset-bottom,0)}
+nav button{flex:1;background:none;border-radius:0;padding:14px 2px;font-size:.78rem;color:#b9c8b8;font-weight:500}
+nav button.on{color:var(--bege);font-weight:700;box-shadow:inset 0 3px 0 var(--bege)}
+.vazio{text-align:center;color:#5d6657;padding:28px 10px}
+.auth{max-width:420px;margin:0 auto}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// ====== COLE AQUI OS DADOS DO SEU SUPABASE ======
+const SUPABASE_URL = 'https://sheraatvpsncqbhjmwyn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoZXJhYXR2cHNuY3FiaGptd3luIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwMjkxMzQsImV4cCI6MjEwOTYwNTEzNH0.SdFZJbEYcivcUmqZ3FhWG32j9iS81E7VbtRo87CpMXA';
+// =================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const CATS = {trilha:'Trilha',cachoeira:'Cachoeira',camping:'Camping',passeio:'Passeio',viagem:'Viagem'};
+const DIFS = {facil:'Fácil',moderada:'Moderada',dificil:'Difícil'};
+const CIDADES = ['Gramado','Canela','São Francisco de Paula','Cambará do Sul','Nova Petrópolis','Igrejinha','Três Coroas','Picada Café'];
+const S = {user:null,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login'};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const opts = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
+const dataTxt = a => a.date_mode === 'a_combinar' ? 'Data a combinar' : new Date(a.event_date + 'T12:00').toLocaleDateString('pt-BR');
+const msgHtml = () => S.msg ? `<div class="msg ${S.msg.erro?'erro':''}">${esc(S.msg.t)}</div>` : '';
+const say = (t, erro) => { S.msg = {t, erro}; render(); };
+
+async function loadActs() {
+  const {data, error} = await sb.from('activities')
+    .select('*, creator:profiles!creator_id(name), interests(user_id, profiles(name))')
+    .order('created_at', {ascending:false});
+  if (error) return say('Não foi possível carregar as atividades: ' + error.message, true);
+  S.acts = data;
+}
+async function loadProfile() {
+  const {data} = await sb.from('profiles').select('*').eq('id', S.user.id).single();
+  S.profile = data;
+}
+
+// ---------- Telas ----------
+function cardAtividade(a) {
+  const eu = a.interests.some(i => i.user_id === S.user.id);
+  return `<div class="card"><h3>${esc(a.title)}</h3>
+    <div class="chips"><span class="chip">${CATS[a.category]}</span><span class="chip">${DIFS[a.difficulty]}</span><span class="chip">${esc(a.city)}</span></div>
+    <div class="meta">${dataTxt(a)} · por ${esc(a.creator?.name || 'alguém')}</div>
+    ${a.description ? `<p>${esc(a.description)}</p>` : ''}
+    <div class="row" style="align-items:center"><span class="meta">${a.interests.length} interessado(s)</span>
+    <button class="${eu?'sec':''}" onclick="toggleInteresse('${a.id}',${eu})">${eu?'Sair do grupo':'Bora junto'}</button></div></div>`;
+}
+const lista = (arr, vazio) => arr.length ? arr.map(cardAtividade).join('') : `<div class="vazio">${vazio}</div>`;
+
+function telaInicio() {
+  const nome = (S.profile?.name || '').split(' ')[0];
+  return `<div class="hero"><h1>Bora Junto</h1><p>${nome ? 'Olá, ' + esc(nome) + '. ' : ''}Atividades ao ar livre na Serra Gaúcha, sem data marcada ou com data definida.</p>
+  <svg viewBox="0 0 400 70" preserveAspectRatio="none"><path d="M0 70V40l60-30 50 35 70-40 80 45 60-30 80 35v15z" fill="#2f5a40"/><path d="M0 70V55l80-25 70 30 90-35 70 30 90-20v35z" fill="#efe6d4"/></svg></div>
+  <div class="wrap"><h2>Novidades</h2>${lista(S.acts.slice(0,5), 'Nenhuma atividade ainda. Seja o primeiro a criar uma!')}</div>`;
+}
+function telaExplorar() {
+  const f = S.f;
+  const r = S.acts.filter(a => (!f.city || a.city.toLowerCase().includes(f.city.toLowerCase())) && (!f.cat || a.category === f.cat) && (!f.dif || a.difficulty === f.dif));
+  return `<div class="wrap"><h2>Explorar</h2>
+  <label for="fc">Cidade</label><input id="fc" list="cidades" value="${esc(f.city)}" placeholder="Ex.: Gramado" oninput="S.f.city=this.value;filtra()">
+  <div class="row"><div><label for="fk">Categoria</label><select id="fk" onchange="S.f.cat=this.value;filtra()"><option value="">Todas</option>${opts(CATS,f.cat)}</select></div>
+  <div><label for="fd">Dificuldade</label><select id="fd" onchange="S.f.dif=this.value;filtra()"><option value="">Todas</option>${opts(DIFS,f.dif)}</select></div></div>
+  <div id="res" style="margin-top:16px">${lista(r, 'Nenhuma atividade encontrada com esses filtros.')}</div></div>`;
+}
+function filtra() { // atualiza só a lista, sem perder o foco do campo
+  const f = S.f;
+  const r = S.acts.filter(a => (!f.city || a.city.toLowerCase().includes(f.city.toLowerCase())) && (!f.cat || a.category === f.cat) && (!f.dif || a.difficulty === f.dif));
+  $('res').innerHTML = lista(r, 'Nenhuma atividade encontrada com esses filtros.');
+}
+function telaCriar() {
+  return `<div class="wrap"><h2>Criar atividade</h2><form onsubmit="criar(event)">
+  <label for="t">Título</label><input id="t" required maxlength="80" placeholder="Ex.: Trilha até a Cascata do Caracol">
+  <label for="d">Descrição</label><textarea id="d" rows="3" maxlength="500" placeholder="Ponto de encontro, o que levar, ritmo..."></textarea>
+  <div class="row"><div><label for="c">Categoria</label><select id="c">${opts(CATS)}</select></div>
+  <div><label for="df">Dificuldade</label><select id="df">${opts(DIFS)}</select></div></div>
+  <label for="ci">Cidade</label><input id="ci" list="cidades" required placeholder="Ex.: Canela">
+  <label for="dm">Data</label><select id="dm" onchange="$('dw').style.display=this.value==='definida'?'block':'none'"><option value="a_combinar">A combinar com o grupo</option><option value="definida">Data definida</option></select>
+  <div id="dw" style="display:none"><label for="ed">Dia</label><input id="ed" type="date"></div>
+  <button class="full">Publicar atividade</button></form>${msgHtml()}</div>`;
+}
+function telaComunidade() {
+  const meus = S.acts.filter(a => a.interests.some(i => i.user_id === S.user.id));
+  return `<div class="wrap"><h2>Meus grupos</h2><p class="meta">Atividades em que você demonstrou interesse e quem mais vai junto.</p>
+  ${meus.length ? meus.map(a => `<div class="card"><h3>${esc(a.title)}</h3><div class="meta">${esc(a.city)} · ${dataTxt(a)}</div>
+    <p><b>Participantes:</b> ${a.interests.map(i => esc(i.profiles?.name || 'Sem nome')).join(', ')}</p>
+    <button class="sec" onclick="toggleInteresse('${a.id}',true)">Sair do grupo</button></div>`).join('') : '<div class="vazio">Você ainda não está em nenhum grupo. Vá em Explorar e toque em “Bora junto”.</div>'}</div>`;
+}
+function telaPerfil() {
+  const p = S.profile || {};
+  return `<div class="wrap"><h2>Meu perfil</h2><form onsubmit="salvaPerfil(event)">
+  <label for="pn">Nome</label><input id="pn" required maxlength="60" value="${esc(p.name)}">
+  <label for="pc">Cidade</label><input id="pc" list="cidades" value="${esc(p.city)}">
+  <label for="pi">Interesses (separados por vírgula)</label><input id="pi" value="${esc((p.interests||[]).join(', '))}" placeholder="trilha, camping, cachoeira">
+  <label for="pb">Sobre mim</label><textarea id="pb" rows="3" maxlength="300">${esc(p.bio)}</textarea>
+  <button class="full">Salvar perfil</button></form>${msgHtml()}
+  <p class="meta">${esc(S.user.email)}</p><button class="sec full" onclick="sair()">Sair da conta</button></div>`;
+}
+function telaAuth() {
+  const cad = S.authMode === 'cadastro';
+  return `<div class="hero"><h1>Bora Junto</h1><p>Encontre gente para trilhas, cachoeiras e camping na Serra Gaúcha.</p>
+  <svg viewBox="0 0 400 70" preserveAspectRatio="none"><path d="M0 70V40l60-30 50 35 70-40 80 45 60-30 80 35v15z" fill="#2f5a40"/><path d="M0 70V55l80-25 70 30 90-35 70 30 90-20v35z" fill="#efe6d4"/></svg></div>
+  <div class="wrap auth"><h2>${cad ? 'Criar conta' : 'Entrar'}</h2><form onsubmit="autentica(event)">
+  ${cad ? '<label for="an">Nome</label><input id="an" required maxlength="60">' : ''}
+  <label for="ae">E-mail</label><input id="ae" type="email" required autocomplete="email">
+  <label for="as">Senha</label><input id="as" type="password" required minlength="6" autocomplete="${cad?'new-password':'current-password'}">
+  <button class="full">${cad ? 'Criar conta' : 'Entrar'}</button></form>${msgHtml()}
+  <button class="sec full" onclick="S.authMode='${cad?'login':'cadastro'}';S.msg=null;render()">${cad ? 'Já tenho conta' : 'Quero criar uma conta'}</button></div>`;
+}
+
+// ---------- Ações ----------
+async function autentica(e) {
+  e.preventDefault();
+  const email = $('ae').value.trim(), password = $('as').value;
+  if (S.authMode === 'cadastro') {
+    const {data, error} = await sb.auth.signUp({email, password, options:{data:{name:$('an').value.trim()}}});
+    if (error) return say('Erro: ' + error.message, true);
+    if (!data.session) say('Conta criada. Confirme seu e-mail e depois entre.');
+  } else {
+    const {error} = await sb.auth.signInWithPassword({email, password});
+    if (error) say('E-mail ou senha incorretos.', true);
+  }
+}
+async function sair() { await sb.auth.signOut(); }
+async function criar(e) {
+  e.preventDefault();
+  const modo = $('dm').value;
+  if (modo === 'definida' && !$('ed').value) return say('Escolha o dia da atividade.', true);
+  const {data, error} = await sb.from('activities').insert({
+    creator_id: S.user.id, title: $('t').value.trim(), description: $('d').value.trim(),
+    category: $('c').value, difficulty: $('df').value, city: $('ci').value.trim(),
+    date_mode: modo, event_date: modo === 'definida' ? $('ed').value : null
+  }).select().single();
+  if (error) return say('Erro ao publicar: ' + error.message, true);
+  await sb.from('interests').insert({activity_id: data.id, user_id: S.user.id}); // o criador entra no grupo
+  await loadActs(); S.msg = null; go('explorar');
+}
+async function toggleInteresse(id, jaTem) {
+  const q = sb.from('interests');
+  const {error} = jaTem ? await q.delete().match({activity_id:id, user_id:S.user.id}) : await q.insert({activity_id:id, user_id:S.user.id});
+  if (error) return say('Erro: ' + error.message, true);
+  await loadActs(); render();
+}
+async function salvaPerfil(e) {
+  e.preventDefault();
+  const {error} = await sb.from('profiles').update({
+    name: $('pn').value.trim(), city: $('pc').value.trim(), bio: $('pb').value.trim(),
+    interests: $('pi').value.split(',').map(s => s.trim()).filter(Boolean)
+  }).eq('id', S.user.id);
+  if (error) return say('Erro ao salvar: ' + error.message, true);
+  await loadProfile(); say('Perfil salvo.');
+}
+function go(t) { S.tab = t; S.msg = null; render(); window.scrollTo(0,0); }
+
+// ---------- Render ----------
+const ABAS = [['inicio','Início'],['explorar','Explorar'],['criar','Criar'],['comunidade','Comunidade'],['perfil','Perfil']];
+function render() {
+  const dl = `<datalist id="cidades">${CIDADES.map(c => `<option value="${c}">`).join('')}</datalist>`;
+  if (!S.user) { $('app').innerHTML = telaAuth(); return; }
+  const tela = {inicio:telaInicio, explorar:telaExplorar, criar:telaCriar, comunidade:telaComunidade, perfil:telaPerfil}[S.tab]();
+  $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n]) => `<button class="${S.tab===k?'on':''}" onclick="go('${k}')">${n}</button>`).join('')}</nav>`;
+}
+sb.auth.onAuthStateChange(async (_ev, session) => {
+  S.user = session?.user ?? null;
+  if (S.user) { await loadProfile(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; }
+  render();
+});
+</script>
+</body>
+</html>
