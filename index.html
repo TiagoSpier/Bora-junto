@@ -33,6 +33,11 @@ nav button{flex:1;background:none;border-radius:0;padding:14px 2px;font-size:.78
 nav button.on{color:var(--bege);font-weight:700;box-shadow:inset 0 3px 0 var(--bege)}
 .vazio{text-align:center;color:#5d6657;padding:28px 10px}
 .auth{max-width:420px;margin:0 auto}
+.chat{background:var(--branco);border:1px solid var(--bege2);border-radius:14px;padding:10px;height:320px;overflow-y:auto;margin-bottom:10px}
+.bolha{background:var(--bege);border-radius:12px;padding:6px 10px;margin:6px 0;max-width:85%;word-wrap:break-word}
+.bolha.eu{background:var(--verde);color:var(--bege);margin-left:auto}
+.bolha small{display:block;opacity:.7;font-size:.75rem}
+.voltar{background:none;color:var(--verde);padding:0 0 8px;font-weight:600}
 </style>
 </head>
 <body>
@@ -48,7 +53,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const CATS = {trilha:'Trilha',cachoeira:'Cachoeira',camping:'Camping',passeio:'Passeio',viagem:'Viagem'};
 const DIFS = {facil:'Fácil',moderada:'Moderada',dificil:'Difícil'};
 const CIDADES = ['Gramado','Canela','São Francisco de Paula','Cambará do Sul','Nova Petrópolis','Igrejinha','Três Coroas','Picada Café'];
-const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null};
+const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null,group:null,msgs:[],opts:[],canal:null};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const opts = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
@@ -119,11 +124,32 @@ function telaCriar() {
   </form>${msgHtml()}</div>`;
 }
 function telaComunidade() {
+  if (S.group) return telaGrupo();
   const meus = S.acts.filter(a => a.interests.some(i => i.user_id === S.user.id));
-  return `<div class="wrap"><h2>Meus grupos</h2><p class="meta">Atividades em que você demonstrou interesse e quem mais vai junto.</p>
+  return `<div class="wrap"><h2>Meus grupos</h2><p class="meta">Atividades em que você demonstrou interesse. Abra o grupo para conversar e votar na data.</p>
   ${meus.length ? meus.map(a => `<div class="card"><h3>${esc(a.title)}</h3><div class="meta">${esc(a.city)} · ${dataTxt(a)}</div>
     <p><b>Participantes:</b> ${a.interests.map(i => esc(i.profiles?.name || 'Sem nome')).join(', ')}</p>
-    <button class="sec" onclick="toggleInteresse('${a.id}',true)">Sair do grupo</button></div>`).join('') : '<div class="vazio">Você ainda não está em nenhum grupo. Vá em Explorar e toque em “Bora junto”.</div>'}</div>`;
+    <div class="row"><button onclick="abrirGrupo('${a.id}')">Abrir grupo</button><button class="sec" onclick="toggleInteresse('${a.id}',true)">Sair do grupo</button></div></div>`).join('') : '<div class="vazio">Você ainda não está em nenhum grupo. Vá em Explorar e toque em “Bora junto”.</div>'}</div>`;
+}
+const fd = d => new Date(d + 'T12:00').toLocaleDateString('pt-BR');
+function chatHtml() {
+  return S.msgs.length ? S.msgs.map(m => `<div class="bolha ${m.user_id === S.user.id ? 'eu' : ''}"><small>${esc(m.profiles?.name || 'Alguém')}</small>${esc(m.content)}</div>`).join('') : '<div class="vazio">Nenhuma mensagem ainda. Diga um oi!</div>';
+}
+function telaGrupo() {
+  const a = S.acts.find(x => x.id === S.group);
+  if (!a) return '<div class="wrap vazio">Grupo não encontrado.</div>';
+  const dono = a.creator_id === S.user.id;
+  const ops = S.opts.length ? S.opts.map(o => { const eu = o.date_votes.some(v => v.user_id === S.user.id);
+    return `<div class="row" style="align-items:center;margin-bottom:8px"><span><b>${fd(o.option_date)}</b><br><span class="meta">${o.date_votes.length} voto(s)</span></span>
+    <button class="${eu ? 'sec' : ''}" onclick="votar('${o.id}',${eu})">${eu ? 'Tirar voto' : 'Votar'}</button>
+    ${dono ? `<button class="sec" onclick="definirData('${o.option_date}')">Definir</button>` : ''}</div>`; }).join('') : '<p class="meta">Ninguém sugeriu data ainda.</p>';
+  return `<div class="wrap"><button class="voltar" onclick="go('comunidade')">← Voltar</button>
+  <h2>${esc(a.title)}</h2><div class="meta">${esc(a.city)} · ${dataTxt(a)} · ${a.interests.length} participante(s)</div>
+  <h3 style="margin-top:18px">Datas</h3><div class="card">${ops}
+  <div class="row" style="margin-top:8px"><input id="nd" type="date"><button class="sec" onclick="propor()">Sugerir data</button></div>
+  ${dono ? '<p class="meta">Como criador, toque em “Definir” para fixar a data escolhida.</p>' : ''}</div>
+  <h3>Chat do grupo</h3><div id="chat" class="chat">${chatHtml()}</div>
+  <div class="row"><input id="cm" maxlength="1000" placeholder="Escreva uma mensagem" onkeydown="if(event.key==='Enter')enviar()"><button style="flex:0 0 auto" onclick="enviar()">Enviar</button></div></div>`;
 }
 function telaPerfil() {
   const p = S.profile || {};
@@ -200,7 +226,50 @@ async function salvaPerfil(e) {
   if (error) return say('Erro ao salvar: ' + error.message, true);
   await loadProfile(); say('Perfil salvo.');
 }
-function go(t) { S.tab = t; S.edit = null; S.msg = null; render(); window.scrollTo(0,0); }
+function go(t) { fechaCanal(); S.tab = t; S.edit = null; S.group = null; S.msg = null; render(); window.scrollTo(0,0); }
+
+// ---------- Grupo: chat e votação ----------
+function fechaCanal() { if (S.canal) { sb.removeChannel(S.canal); S.canal = null; } }
+async function loadMsgs() {
+  const {data} = await sb.from('messages').select('*, profiles(name)').eq('activity_id', S.group).order('created_at');
+  S.msgs = data || [];
+}
+async function loadOpts() {
+  const {data} = await sb.from('date_options').select('*, date_votes(user_id)').eq('activity_id', S.group).order('option_date');
+  S.opts = data || [];
+}
+function renderChat() { const c = $('chat'); if (c) { c.innerHTML = chatHtml(); c.scrollTop = c.scrollHeight; } }
+async function abrirGrupo(id) {
+  fechaCanal(); S.group = id; S.msgs = []; S.opts = [];
+  await Promise.all([loadMsgs(), loadOpts()]);
+  render(); renderChat();
+  S.canal = sb.channel('chat-' + id).on('postgres_changes', {event:'INSERT', schema:'public', table:'messages', filter:'activity_id=eq.' + id},
+    async () => { await loadMsgs(); renderChat(); }).subscribe();
+}
+async function enviar() {
+  const v = $('cm').value.trim(); if (!v) return; $('cm').value = '';
+  const {error} = await sb.from('messages').insert({activity_id: S.group, user_id: S.user.id, content: v});
+  if (error) return alert('Não foi possível enviar: ' + error.message);
+  await loadMsgs(); renderChat();
+}
+async function propor() {
+  const d = $('nd').value; if (!d) return alert('Escolha uma data.');
+  const {error} = await sb.from('date_options').insert({activity_id: S.group, proposed_by: S.user.id, option_date: d});
+  if (error) return alert(error.code === '23505' ? 'Essa data já foi sugerida.' : 'Erro: ' + error.message);
+  await loadOpts(); render(); renderChat();
+}
+async function votar(id, jaTem) {
+  const q = sb.from('date_votes');
+  const {error} = jaTem ? await q.delete().match({option_id: id, user_id: S.user.id}) : await q.insert({option_id: id, user_id: S.user.id});
+  if (error) return alert('Erro: ' + error.message);
+  await loadOpts(); render(); renderChat();
+}
+async function definirData(d) {
+  if (!confirm('Definir ' + fd(d) + ' como a data da atividade?')) return;
+  const {error} = await sb.from('activities').update({date_mode: 'definida', event_date: d}).eq('id', S.group);
+  if (error) return alert('Erro: ' + error.message);
+  await loadActs(); render(); renderChat();
+}
 
 // ---------- Render ----------
 const ABAS = [['inicio','Início'],['explorar','Explorar'],['criar','Criar'],['comunidade','Comunidade'],['perfil','Perfil']];
