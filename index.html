@@ -48,7 +48,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const CATS = {trilha:'Trilha',cachoeira:'Cachoeira',camping:'Camping',passeio:'Passeio',viagem:'Viagem'};
 const DIFS = {facil:'Fácil',moderada:'Moderada',dificil:'Difícil'};
 const CIDADES = ['Gramado','Canela','São Francisco de Paula','Cambará do Sul','Nova Petrópolis','Igrejinha','Três Coroas','Picada Café'];
-const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login'};
+const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const opts = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
@@ -76,7 +76,8 @@ function cardAtividade(a) {
     <div class="meta">${dataTxt(a)} · por ${esc(a.creator?.name || 'alguém')}</div>
     ${a.description ? `<p>${esc(a.description)}</p>` : ''}
     <div class="row" style="align-items:center"><span class="meta">${a.interests.length} interessado(s)</span>
-    <button class="${eu?'sec':''}" onclick="toggleInteresse('${a.id}',${eu})">${eu?'Sair do grupo':'Bora junto'}</button></div></div>`;
+    <button class="${eu?'sec':''}" onclick="toggleInteresse('${a.id}',${eu})">${eu?'Sair do grupo':'Bora junto'}</button></div>
+    ${a.creator_id === S.user.id ? `<div class="row" style="margin-top:10px"><button class="sec" onclick="editar('${a.id}')">Editar</button><button class="sec" onclick="excluir('${a.id}')">Excluir</button></div>` : ''}</div>`;
 }
 const lista = (arr, vazio) => arr.length ? arr.map(cardAtividade).join('') : `<div class="vazio">${vazio}</div>`;
 
@@ -101,15 +102,21 @@ function filtra() { // atualiza só a lista, sem perder o foco do campo
   $('res').innerHTML = lista(r, 'Nenhuma atividade encontrada com esses filtros.');
 }
 function telaCriar() {
-  return `<div class="wrap"><h2>Criar atividade</h2><form onsubmit="criar(event)">
-  <label for="t">Título</label><input id="t" required maxlength="80" placeholder="Ex.: Trilha até a Cascata do Caracol">
-  <label for="d">Descrição</label><textarea id="d" rows="3" maxlength="500" placeholder="Ponto de encontro, o que levar, ritmo..."></textarea>
-  <div class="row"><div><label for="c">Categoria</label><select id="c">${opts(CATS)}</select></div>
-  <div><label for="df">Dificuldade</label><select id="df">${opts(DIFS)}</select></div></div>
-  <label for="ci">Cidade</label><input id="ci" list="cidades" required placeholder="Ex.: Canela">
-  <label for="dm">Data</label><select id="dm" onchange="$('dw').style.display=this.value==='definida'?'block':'none'"><option value="a_combinar">A combinar com o grupo</option><option value="definida">Data definida</option></select>
-  <div id="dw" style="display:none"><label for="ed">Dia</label><input id="ed" type="date"></div>
-  <button class="full">Publicar atividade</button></form>${msgHtml()}</div>`;
+  const a = S.acts.find(x => x.id === S.edit) || {};
+  const ed = !!a.id;
+  return `<div class="wrap"><h2>${ed ? 'Editar atividade' : 'Criar atividade'}</h2><form onsubmit="criar(event)">
+  <label for="t">Título</label><input id="t" required maxlength="80" value="${esc(a.title)}" placeholder="Ex.: Trilha até a Cascata do Caracol">
+  <label for="d">Descrição</label><textarea id="d" rows="3" maxlength="500" placeholder="Ponto de encontro, o que levar, ritmo...">${esc(a.description)}</textarea>
+  <div class="row"><div><label for="c">Categoria</label><select id="c">${opts(CATS, a.category)}</select></div>
+  <div><label for="df">Dificuldade</label><select id="df">${opts(DIFS, a.difficulty)}</select></div></div>
+  <label for="ci">Cidade</label><input id="ci" list="cidades" required value="${esc(a.city)}" placeholder="Ex.: Canela">
+  <label for="dm">Data</label><select id="dm" onchange="$('dw').style.display=this.value==='definida'?'block':'none'">
+    <option value="a_combinar" ${a.date_mode !== 'definida' ? 'selected' : ''}>A combinar com o grupo</option>
+    <option value="definida" ${a.date_mode === 'definida' ? 'selected' : ''}>Data definida</option></select>
+  <div id="dw" style="display:${a.date_mode === 'definida' ? 'block' : 'none'}"><label for="ed">Dia</label><input id="ed" type="date" value="${a.event_date || ''}"></div>
+  <button id="bt" class="full">${ed ? 'Salvar alterações' : 'Publicar atividade'}</button>
+  ${ed ? `<button type="button" class="sec full" onclick="go('explorar')">Cancelar</button>` : ''}
+  </form>${msgHtml()}</div>`;
 }
 function telaComunidade() {
   const meus = S.acts.filter(a => a.interests.some(i => i.user_id === S.user.id));
@@ -156,16 +163,27 @@ async function autentica(e) {
 async function sair() { await sb.auth.signOut(); }
 async function criar(e) {
   e.preventDefault();
+  const btn = $('bt'); if (btn.disabled) return; btn.disabled = true; // evita publicar duas vezes
   const modo = $('dm').value;
-  if (modo === 'definida' && !$('ed').value) return say('Escolha o dia da atividade.', true);
-  const {data, error} = await sb.from('activities').insert({
-    creator_id: S.user.id, title: $('t').value.trim(), description: $('d').value.trim(),
-    category: $('c').value, difficulty: $('df').value, city: $('ci').value.trim(),
-    date_mode: modo, event_date: modo === 'definida' ? $('ed').value : null
-  }).select().single();
-  if (error) return say('Erro ao publicar: ' + error.message, true);
-  await sb.from('interests').insert({activity_id: data.id, user_id: S.user.id}); // o criador entra no grupo
+  if (modo === 'definida' && !$('ed').value) { btn.disabled = false; return say('Escolha o dia da atividade.', true); }
+  const campos = {title: $('t').value.trim(), description: $('d').value.trim(), category: $('c').value, difficulty: $('df').value,
+    city: $('ci').value.trim(), date_mode: modo, event_date: modo === 'definida' ? $('ed').value : null};
+  if (S.edit) {
+    const {error} = await sb.from('activities').update(campos).eq('id', S.edit);
+    if (error) return say('Erro ao salvar: ' + error.message, true);
+  } else {
+    const {data, error} = await sb.from('activities').insert({creator_id: S.user.id, ...campos}).select().single();
+    if (error) return say('Erro ao publicar: ' + error.message, true);
+    await sb.from('interests').insert({activity_id: data.id, user_id: S.user.id}); // o criador entra no grupo
+  }
   await loadActs(); S.msg = null; go('explorar');
+}
+function editar(id) { S.edit = id; S.tab = 'criar'; S.msg = null; render(); window.scrollTo(0,0); }
+async function excluir(id) {
+  if (!confirm('Excluir esta atividade? O grupo de interessados também será removido.')) return;
+  const {data, error} = await sb.from('activities').delete().eq('id', id).select();
+  if (error || !data.length) return alert('Não foi possível excluir. ' + (error ? error.message : ''));
+  await loadActs(); render();
 }
 async function toggleInteresse(id, jaTem) {
   const q = sb.from('interests');
@@ -182,7 +200,7 @@ async function salvaPerfil(e) {
   if (error) return say('Erro ao salvar: ' + error.message, true);
   await loadProfile(); say('Perfil salvo.');
 }
-function go(t) { S.tab = t; S.msg = null; render(); window.scrollTo(0,0); }
+function go(t) { S.tab = t; S.edit = null; S.msg = null; render(); window.scrollTo(0,0); }
 
 // ---------- Render ----------
 const ABAS = [['inicio','Início'],['explorar','Explorar'],['criar','Criar'],['comunidade','Comunidade'],['perfil','Perfil']];
