@@ -58,6 +58,7 @@ nav .mais span{display:grid;place-items:center;width:46px;height:46px;margin:-24
 .bolha{background:var(--card2);border-radius:12px;padding:6px 10px;margin:6px 0;max-width:85%;word-wrap:break-word}
 .bolha.eu{background:var(--lima);color:var(--on-lima);margin-left:auto}
 .bolha small{display:block;opacity:.7;font-size:.75rem}
+.prev{height:150px;border-radius:12px;margin-top:8px;background:var(--card2) center/cover;display:none}
 .voltar{background:none;color:var(--lima);padding:0 0 8px;font-weight:600}
 .phead{display:flex;gap:14px;align-items:center;margin-bottom:12px}
 .avatar{width:64px;height:64px;border-radius:50%;background:var(--lima);color:var(--on-lima);display:grid;place-items:center;font-size:1.8rem;font-weight:700}
@@ -109,7 +110,7 @@ function badge(a) {
 function cardAtividade(a) {
   const eu = a.interests.some(i => i.user_id === S.user.id);
   const dono = a.creator_id === S.user.id;
-  return `<div class="card ev"><div class="topo c-${a.category}"><span class="tag">${CATS[a.category]}</span></div>
+  return `<div class="card ev"><div class="topo c-${a.category}" ${a.cover_url ? `style="background:linear-gradient(0deg,rgba(13,17,14,.7),rgba(13,17,14,.05)),url('${esc(a.cover_url)}') center/cover"` : ''}><span class="tag">${CATS[a.category]}</span></div>
   <div class="corpo"><div class="linha">${badge(a)}<div><h3 style="margin:0 0 4px">${esc(a.title)}</h3>
   <div class="meta">📍 ${esc(a.city)} · ${DIFS[a.difficulty]} · ${dataTxt(a)}</div>
   <div class="meta">por ${esc(a.creator?.name || 'alguém')} · ${a.interests.length} interessado(s)</div></div></div>
@@ -152,6 +153,8 @@ function telaCriar() {
     <option value="a_combinar" ${a.date_mode !== 'definida' ? 'selected' : ''}>A combinar com o grupo</option>
     <option value="definida" ${a.date_mode === 'definida' ? 'selected' : ''}>Data definida</option></select>
   <div id="dw" style="display:${a.date_mode === 'definida' ? 'block' : 'none'}"><label for="ed">Dia</label><input id="ed" type="date" value="${a.event_date || ''}"></div>
+  <label for="cv">Foto de capa (opcional)</label><input id="cv" type="file" accept="image/*" onchange="prevCapa(this)">
+  <div id="pv" class="prev" ${a.cover_url ? `style="display:block;background-image:url('${esc(a.cover_url)}')"` : ''}></div>
   <button id="bt" class="full">${ed ? 'Salvar alterações' : 'Publicar atividade'}</button>
   ${ed ? `<button type="button" class="sec full" onclick="go('explorar')">Cancelar</button>` : ''}
   </form>${msgHtml()}</div>`;
@@ -226,6 +229,25 @@ async function autentica(e) {
   }
 }
 async function sair() { await sb.auth.signOut(); }
+function redimensiona(file, max = 1100) {
+  return new Promise((ok, no) => {
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => {
+      const r = Math.min(1, max / img.width), c = document.createElement('canvas');
+      c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u);
+      c.toBlob(b => b ? ok(b) : no(new Error('Falha ao processar a imagem')), 'image/jpeg', 0.8);
+    };
+    img.onerror = () => no(new Error('Imagem inválida'));
+    img.src = u;
+  });
+}
+function prevCapa(inp) {
+  const f = inp.files[0], pv = $('pv');
+  if (!f) { pv.style.display = 'none'; return; }
+  pv.style.backgroundImage = `url(${URL.createObjectURL(f)})`; pv.style.display = 'block';
+}
 async function criar(e) {
   e.preventDefault();
   const btn = $('bt'); if (btn.disabled) return; btn.disabled = true; // evita publicar duas vezes
@@ -233,6 +255,17 @@ async function criar(e) {
   if (modo === 'definida' && !$('ed').value) { btn.disabled = false; return say('Escolha o dia da atividade.', true); }
   const campos = {title: $('t').value.trim(), description: $('d').value.trim(), category: $('c').value, difficulty: $('df').value,
     city: $('ci').value.trim(), date_mode: modo, event_date: modo === 'definida' ? $('ed').value : null};
+  const arq = $('cv').files[0];
+  if (arq) {
+    try {
+      btn.textContent = 'Enviando foto…';
+      const blob = await redimensiona(arq);
+      const path = S.user.id + '/' + crypto.randomUUID() + '.jpg';
+      const {error: e1} = await sb.storage.from('capas').upload(path, blob, {contentType: 'image/jpeg'});
+      if (e1) throw e1;
+      campos.cover_url = sb.storage.from('capas').getPublicUrl(path).data.publicUrl;
+    } catch (err) { return say('Erro ao enviar a foto: ' + err.message, true); }
+  }
   if (S.edit) {
     const {error} = await sb.from('activities').update(campos).eq('id', S.edit);
     if (error) return say('Erro ao salvar: ' + error.message, true);
