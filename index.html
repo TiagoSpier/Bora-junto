@@ -48,7 +48,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const CATS = {trilha:'Trilha',cachoeira:'Cachoeira',camping:'Camping',passeio:'Passeio',viagem:'Viagem'};
 const DIFS = {facil:'Fácil',moderada:'Moderada',dificil:'Difícil'};
 const CIDADES = ['Gramado','Canela','São Francisco de Paula','Cambará do Sul','Nova Petrópolis','Igrejinha','Três Coroas','Picada Café'];
-const S = {user:null,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login'};
+const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login'};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const opts = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
@@ -188,15 +188,22 @@ function go(t) { S.tab = t; S.msg = null; render(); window.scrollTo(0,0); }
 const ABAS = [['inicio','Início'],['explorar','Explorar'],['criar','Criar'],['comunidade','Comunidade'],['perfil','Perfil']];
 function render() {
   const dl = `<datalist id="cidades">${CIDADES.map(c => `<option value="${c}">`).join('')}</datalist>`;
+  if (S.user === undefined) { $('app').innerHTML = '<div class="vazio" style="padding-top:40vh">Carregando…</div>'; return; }
   if (!S.user) { $('app').innerHTML = telaAuth(); return; }
   const tela = {inicio:telaInicio, explorar:telaExplorar, criar:telaCriar, comunidade:telaComunidade, perfil:telaPerfil}[S.tab]();
   $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n]) => `<button class="${S.tab===k?'on':''}" onclick="go('${k}')">${n}</button>`).join('')}</nav>`;
 }
-sb.auth.onAuthStateChange(async (_ev, session) => {
+sb.auth.onAuthStateChange((_ev, session) => {
   S.user = session?.user ?? null;
-  if (S.user) { await loadProfile(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; }
-  render();
+  // setTimeout evita travar o Supabase ao fazer consultas dentro deste evento
+  setTimeout(async () => {
+    try {
+      if (S.user) { await loadProfile(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; }
+    } catch (e) { S.msg = {t: 'Erro ao carregar: ' + e.message, erro: true}; }
+    render();
+  }, 0);
 });
+render();
 </script>
 </body>
 </html>
