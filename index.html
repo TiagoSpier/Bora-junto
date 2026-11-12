@@ -78,6 +78,8 @@ a{color:var(--lima)}
 .avatar{width:64px;height:64px;border-radius:50%;background:var(--lima) center/cover;color:var(--on-lima);display:grid;place-items:center;font-size:1.8rem;font-weight:700;flex:0 0 auto;position:relative;cursor:pointer}
 .avatar input{display:none}.avatar .cam{position:absolute;right:-2px;bottom:-2px;background:var(--card);border:1px solid var(--linha);border-radius:50%;width:24px;height:24px;display:grid;place-items:center;font-size:.8rem}
 .mini{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--lima) center/cover;color:var(--on-lima);font-size:.7rem;font-weight:700;text-align:center;line-height:20px;vertical-align:middle;margin-right:4px}
+.mapa{width:100%;height:220px;border:0;border-radius:14px;margin-top:10px;background:var(--card)}
+.clima{display:flex;gap:12px;align-items:center}.clima .ic{font-size:2rem}
 .lotado{color:#ffb4a8;font-weight:600}
 .stats{display:flex;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:12px;margin-bottom:8px;text-align:center;color:var(--mudo);font-size:.85rem}
 .stats>div{flex:1}.stats b{display:block;font-size:1.5rem;color:var(--lima)}
@@ -117,6 +119,49 @@ function pt(m) {
 }
 const avatarMini = (url, nome) => `<span class="mini" ${url ? `style="background-image:url('${esc(url)}')"` : ''}>${url ? '' : esc((nome || '?')[0].toUpperCase())}</span>`;
 const mapaLink = a => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([a.meeting_point || a.title, a.city, 'RS, Brasil'].join(', '))}" target="_blank" rel="noopener">🗺️ Ver no mapa</a>`;
+const mapaQuery = a => [a.meeting_point || a.title, a.city, 'RS, Brasil'].join(', ');
+const mapaEmbed = a => `<iframe class="mapa" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=${encodeURIComponent(mapaQuery(a))}&z=14&output=embed" title="Mapa do local"></iframe>`;
+// ---- Previsão do tempo (Open-Meteo, gratuito, sem chave)
+const WMO = c => c === 0 ? ['☀️','Céu limpo'] : c <= 2 ? ['🌤️','Poucas nuvens'] : c === 3 ? ['☁️','Nublado'] : c <= 48 ? ['🌫️','Neblina'] : c <= 57 ? ['🌦️','Garoa'] : c <= 67 ? ['🌧️','Chuva'] : c <= 77 ? ['❄️','Neve'] : c <= 82 ? ['🌧️','Pancadas de chuva'] : ['⛈️','Tempestade'];
+S.clima = {}; S.geo = {};
+function climaElegivel(a) {
+  if (a.date_mode !== 'definida' || !a.event_date) return 'sem-data';
+  const dias = Math.round((new Date(a.event_date + 'T12:00') - new Date(new Date().toDateString() + ' 12:00')) / 864e5);
+  if (dias < 0) return 'passou';
+  if (dias > 15) return 'longe';
+  return 'ok';
+}
+async function buscaClima(a) {
+  const key = a.city + '|' + a.event_date;
+  if (S.clima[key]) return S.clima[key];
+  try {
+    if (!S.geo[a.city]) {
+      const g = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=5&language=pt&country_code=BR&name=' + encodeURIComponent(a.city)).then(r => r.json());
+      const r = g.results || []; S.geo[a.city] = r.find(x => /Rio Grande do Sul/i.test(x.admin1 || '')) || r[0] || null;
+    }
+    const geo = S.geo[a.city]; if (!geo) return (S.clima[key] = {erro: 'Cidade não encontrada para a previsão.'});
+    const f = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.latitude}&longitude=${geo.longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max&timezone=America%2FSao_Paulo&start_date=${a.event_date}&end_date=${a.event_date}`).then(r => r.json());
+    const d = f.daily; if (!d || !d.time || !d.time.length) return (S.clima[key] = {erro: 'Previsão indisponível para esta data.'});
+    return (S.clima[key] = {cod: d.weathercode[0], max: Math.round(d.temperature_2m_max[0]), min: Math.round(d.temperature_2m_min[0]), chuva: d.precipitation_probability_max[0], vento: Math.round(d.windspeed_10m_max[0])});
+  } catch (e) { return {erro: 'Não foi possível carregar a previsão agora.'}; }
+}
+function climaTxt(c, compacto) {
+  if (c.erro) return `<span class="meta">${esc(c.erro)}</span>`;
+  const [ic, nome] = WMO(c.cod);
+  if (compacto) return `${ic} ${c.max}°/${c.min}° · chuva ${c.chuva ?? 0}%`;
+  const alerta = (c.chuva ?? 0) >= 60 ? '<p class="meta" style="color:#ffb4a8;margin:8px 0 0">⚠️ Alta chance de chuva: trilhas e pedras de cachoeira ficam escorregadias. Avalie adiar.</p>' : '';
+  return `<div class="clima"><span class="ic">${ic}</span><div><b>${nome}</b><div class="meta">Máx ${c.max}° · Mín ${c.min}° · Chuva ${c.chuva ?? 0}% · Vento ${c.vento} km/h</div></div></div>${alerta}`;
+}
+function climaBox(a, compacto) {
+  const el = climaElegivel(a), id = 'cl-' + (compacto ? 'c-' : 'g-') + a.id;
+  if (el !== 'ok') {
+    if (compacto) return '';
+    return `<p class="meta" style="margin:0">${el === 'sem-data' ? 'Defina a data para ver a previsão do tempo.' : el === 'longe' ? 'A previsão aparece quando faltar até 16 dias para a atividade.' : 'Esta atividade já passou.'}</p>`;
+  }
+  const c = S.clima[a.city + '|' + a.event_date];
+  if (!c) buscaClima(a).then(r => { const e = $(id); if (e) e.innerHTML = climaTxt(r, compacto); });
+  return `<span id="${id}">${c ? climaTxt(c, compacto) : '<span class="meta">Carregando previsão…</span>'}</span>`;
+}
 function vagasTxt(a) {
   if (!a.max_people) return '';
   const l = a.max_people - a.interests.length;
@@ -155,7 +200,8 @@ function cardAtividade(a) {
   <div class="meta">📍 ${esc(a.city)} · ${DIFS[a.difficulty]} · ${dataTxt(a)}</div>
   ${a.meeting_point ? `<div class="meta">Encontro: ${esc(a.meeting_point)}</div>` : ''}
   <div class="meta">${avatarMini(a.creator?.avatar_url, a.creator?.name)}por ${esc(a.creator?.name || 'alguém')}${notaCriador(a.creator_id)}</div>
-  <div class="meta">${a.interests.length}${a.max_people ? '/' + a.max_people : ''} participante(s) ${vagasTxt(a) ? '· ' + vagasTxt(a) : ''}${mediaTxt(a) ? ' · ' + mediaTxt(a) : ''} · ${mapaLink(a)}</div></div></div>
+  <div class="meta">${a.interests.length}${a.max_people ? '/' + a.max_people : ''} participante(s) ${vagasTxt(a) ? '· ' + vagasTxt(a) : ''}${mediaTxt(a) ? ' · ' + mediaTxt(a) : ''} · ${mapaLink(a)}</div>
+  ${climaElegivel(a) === 'ok' ? `<div class="meta">${climaBox(a, true)}</div>` : ''}</div></div>
   ${a.description ? `<p>${esc(a.description)}</p>` : ''}
   ${!eu && a.max_people && a.interests.length >= a.max_people ? '<button class="full sec" disabled>Lotado</button>' : `<button class="full ${eu ? 'sec' : ''}" onclick="toggleInteresse('${a.id}',${eu})">${eu ? 'Sair do grupo' : 'Bora junto'}</button>`}
   ${dono ? `<div class="row" style="margin-top:8px"><button class="sec" onclick="editar('${a.id}')">Editar</button><button class="sec" onclick="excluir('${a.id}')">Excluir</button></div>` : `<div class="row" style="margin-top:6px"><button class="link" onclick="abreDenuncia('atividade','${a.id}','${a.creator_id}')">Denunciar</button><button class="link" onclick="bloquear('${a.creator_id}')">Bloquear criador</button></div>`}</div></div>`;
@@ -225,6 +271,8 @@ function telaGrupo() {
     ${dono ? `<button class="sec" onclick="definirData('${o.option_date}')">Definir</button>` : ''}</div>`; }).join('') : '<p class="meta">Ninguém sugeriu data ainda.</p>';
   return `<div class="wrap"><button class="voltar" onclick="go('comunidade')">← Voltar</button>
   <h2>${esc(a.title)}</h2><div class="meta">${esc(a.city)} · ${dataTxt(a)} · ${a.interests.length}${a.max_people ? '/' + a.max_people : ''} participante(s) · ${mapaLink(a)}</div>${a.meeting_point ? `<div class="meta">Encontro: ${esc(a.meeting_point)}</div>` : ''}
+  ${mapaEmbed(a)}
+  <h3 style="margin-top:18px">Previsão do tempo</h3><div class="card">${climaBox(a, false)}</div>
   <div class="card" style="margin-top:12px"><b>Dicas de segurança</b><p class="meta" style="margin:6px 0 0">Combine o primeiro encontro em local público, avise alguém de confiança sobre o local e o horário, leve água e confira a previsão do tempo. Emergência: 192 (SAMU), 193 (Bombeiros), 190 (Polícia).</p></div>
   <h3 style="margin-top:18px">Datas</h3><div class="card">${ops}
   <div class="row" style="margin-top:8px"><input id="nd" type="date"><button class="sec" onclick="propor()">Sugerir data</button></div>
