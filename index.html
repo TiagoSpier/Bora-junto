@@ -80,6 +80,11 @@ a{color:var(--lima)}
 .mini{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--lima) center/cover;color:var(--on-lima);font-size:.7rem;font-weight:700;text-align:center;line-height:20px;vertical-align:middle;margin-right:4px}
 .mapa{width:100%;height:220px;border:0;border-radius:14px;margin-top:10px;background:var(--card)}
 .clima{display:flex;gap:12px;align-items:center}.clima .ic{font-size:2rem}
+.avatar svg{width:100%;height:100%;border-radius:50%;display:block}
+.mini{overflow:hidden}.mini svg{width:20px;height:20px;border-radius:50%;display:block}
+.sw{width:30px;height:30px;border-radius:50%;border:2px solid var(--linha);padding:0;flex:0 0 auto}.sw.on{border-color:#fff;box-shadow:0 0 0 2px var(--lima)}
+.avprev{width:170px;height:170px;border-radius:50%;overflow:hidden;margin:6px auto 14px;border:3px solid var(--lima)}.avprev svg{width:100%;height:100%;display:block}
+.avgrp{margin-top:14px}.avgrp h4{margin:0 0 6px;color:var(--mudo);font-size:.85rem;font-weight:600}.avrow{display:flex;gap:8px;flex-wrap:wrap}
 .lotado{color:#ffb4a8;font-weight:600}
 .stats{display:flex;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:12px;margin-bottom:8px;text-align:center;color:var(--mudo);font-size:.85rem}
 .stats>div{flex:1}.stats b{display:block;font-size:1.5rem;color:var(--lima)}
@@ -117,8 +122,90 @@ function pt(m) {
   for (const [k, v] of t) if (m.includes(k)) return v;
   return 'Algo deu errado. Tente de novo. (' + m + ')';
 }
-const avatarMini = (url, nome) => `<span class="mini" ${url ? `style="background-image:url('${esc(url)}')"` : ''}>${url ? '' : esc((nome || '?')[0].toUpperCase())}</span>`;
+const avatarMini = p => usaAvatar(p) ? `<span class="mini">${avatarSvg(p.avatar)}</span>` : `<span class="mini" ${p?.avatar_url ? `style="background-image:url('${esc(p.avatar_url)}')"` : ''}>${p?.avatar_url ? '' : esc((p?.name || '?')[0].toUpperCase())}</span>`;
 const mapaLink = a => `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([a.meeting_point || a.title, a.city, 'RS, Brasil'].join(', '))}" target="_blank" rel="noopener">🗺️ Ver no mapa</a>`;
+// ---------- Avatar (desenhado em SVG, peças combináveis) ----------
+const AV = {
+  fundo: ['#2d4a2b','#1d3a1c','#3a5a7a','#7a4a3a','#6a5a2a','#4a3a6a','#2a5a5a','#8a6a3a'],
+  pele: ['#fbe0c8','#f1c9a0','#d9a572','#b8794a','#8a5530','#5e3a22'],
+  cabeloCor: ['#1a1a1a','#4a2c17','#8a5a2b','#d9b25a','#c0502a','#b8b8b8'],
+  roupaCor: ['#8fe05a','#e5533d','#3d8be5','#f2c230','#a45fd9','#f2f2f2','#2b2b2b','#e58a3d']
+};
+const AV_PADRAO = {fundo:0,cenario:1,pele:1,cabelo:1,cabeloCor:1,olhos:0,boca:0,roupa:0,roupaCor:0,chapeu:0,oculos:0,mochila:0,extra:0};
+const AV_GRUPOS = [
+  ['Fundo','fundo',null],['Cenário','cenario',['Liso','Montanhas','Floresta','Sol']],['Pele','pele',null],
+  ['Cabelo','cabelo',['Careca','Curto','Longo','Cacheado','Coque','Rabo de cavalo']],['Cor do cabelo','cabeloCor',null],
+  ['Olhos','olhos',['Normal','Feliz','Piscando']],['Boca','boca',['Sorriso','Sorrisão','Séria']],
+  ['Roupa','roupa',['Camiseta','Jaqueta','Colete']],['Cor da roupa','roupaCor',null],
+  ['Chapéu','chapeu',['Nenhum','Boné','Chapéu de aba','Gorro']],['Óculos','oculos',['Nenhum','Redondo','De sol']],
+  ['Mochila','mochila',['Nenhuma','Pequena','Grande']],['Item de trilha','extra',['Nenhum','Bandana','Câmera','Bastão']]
+];
+function avatarSvg(cfg) {
+  const c = {...AV_PADRAO, ...(cfg || {})};
+  const pele = AV.pele[c.pele] || AV.pele[1], hc = AV.cabeloCor[c.cabeloCor] || '#4a2c17', rc = AV.roupaCor[c.roupaCor] || '#8fe05a', fu = AV.fundo[c.fundo] || AV.fundo[0];
+  let g = `<rect width="100" height="100" fill="${fu}"/>`;
+  if (c.cenario === 1) g += '<path d="M0 78 L25 48 L42 66 L62 40 L100 80 V100 H0Z" fill="rgba(255,255,255,.18)"/>';
+  if (c.cenario === 2) g += [10,30,72,90].map((x,i) => `<path d="M${x} ${66-i%2*8} l-9 22 h18z M${x} ${54-i%2*8} l-7 18 h14z" fill="rgba(0,0,0,.28)"/>`).join('');
+  if (c.cenario === 3) g += '<circle cx="80" cy="22" r="11" fill="#ffd95a"/>';
+  if (c.mochila === 1) g += '<rect x="60" y="62" width="16" height="24" rx="7" fill="#c0502a"/>';
+  if (c.mochila === 2) g += '<rect x="16" y="58" width="68" height="40" rx="16" fill="#2e6a8f"/>';
+  if (c.extra === 3) g += '<rect x="82" y="40" width="3.4" height="62" rx="1.7" fill="#a0723a"/><circle cx="83.7" cy="40" r="3.4" fill="#6b4a22"/>';
+  g += `<ellipse cx="50" cy="100" rx="30" ry="28" fill="${c.roupa === 2 ? '#d9d9d9' : rc}"/>`;
+  if (c.roupa === 1) g += '<path d="M50 72 V100" stroke="rgba(0,0,0,.35)" stroke-width="2"/><path d="M38 74 L50 84 L62 74" stroke="rgba(0,0,0,.3)" stroke-width="2" fill="none"/>';
+  if (c.roupa === 2) g += `<path d="M22 100 Q22 78 40 74 L45 100Z M78 100 Q78 78 60 74 L55 100Z" fill="${rc}"/>`;
+  g += `<rect x="43" y="54" width="14" height="18" rx="5" fill="${pele}"/><path d="M43 66 Q50 72 57 66 V70 Q50 76 43 70Z" fill="rgba(0,0,0,.12)"/>`;
+  if (c.extra === 1) g += '<path d="M37 68 Q50 80 63 68 L60 77 Q50 87 40 77Z" fill="#e5533d"/>';
+  if (c.extra === 2) g += '<path d="M38 72 L46 92 M62 72 L54 92" stroke="#222" stroke-width="2"/><rect x="42" y="88" width="16" height="10" rx="3" fill="#333"/><circle cx="50" cy="93" r="3" fill="#8fe05a"/>';
+  if (c.cabelo === 2) g += `<path d="M30 44 Q28 20 50 22 Q72 20 70 44 L73 72 Q60 68 58 56 L42 56 Q40 68 27 72Z" fill="${hc}"/>`;
+  g += `<circle cx="32" cy="44" r="4" fill="${pele}"/><circle cx="68" cy="44" r="4" fill="${pele}"/><circle cx="50" cy="42" r="18" fill="${pele}"/>`;
+  if (c.olhos === 0) g += '<circle cx="43" cy="43" r="2.3" fill="#222"/><circle cx="57" cy="43" r="2.3" fill="#222"/>';
+  if (c.olhos === 1) g += '<path d="M40 44 Q43 40 46 44 M54 44 Q57 40 60 44" stroke="#222" stroke-width="2" fill="none" stroke-linecap="round"/>';
+  if (c.olhos === 2) g += '<circle cx="43" cy="43" r="2.3" fill="#222"/><path d="M54 43 H60" stroke="#222" stroke-width="2" stroke-linecap="round"/>';
+  if (c.boca === 0) g += '<path d="M44 52 Q50 57 56 52" stroke="#7a3b2e" stroke-width="2" fill="none" stroke-linecap="round"/>';
+  if (c.boca === 1) g += '<path d="M43 51 Q50 62 57 51Z" fill="#7a3b2e"/><path d="M45.5 51.8 H54.5" stroke="#fff" stroke-width="2"/>';
+  if (c.boca === 2) g += '<path d="M45 54 H55" stroke="#7a3b2e" stroke-width="2" stroke-linecap="round"/>';
+  const franja = `<path d="M32 42 Q30 22 50 22 Q70 22 68 42 Q62 32 50 32 Q38 32 32 42Z" fill="${hc}"/>`;
+  if (c.cabelo === 1 || c.cabelo === 2) g += franja;
+  if (c.cabelo === 3) g += `<g fill="${hc}"><circle cx="34" cy="31" r="9"/><circle cx="44" cy="25" r="9"/><circle cx="56" cy="25" r="9"/><circle cx="66" cy="31" r="9"/><circle cx="32" cy="41" r="6"/><circle cx="68" cy="41" r="6"/></g>`;
+  if (c.cabelo === 4) g += `${franja}<circle cx="50" cy="16" r="8" fill="${hc}"/>`;
+  if (c.cabelo === 5) g += `${franja}<path d="M68 34 Q84 36 79 58 Q73 47 66 44Z" fill="${hc}"/>`;
+  if (c.oculos === 1) g += '<g fill="none" stroke="#222" stroke-width="1.8"><circle cx="43" cy="43" r="6"/><circle cx="57" cy="43" r="6"/><path d="M49 43 H51"/></g>';
+  if (c.oculos === 2) g += '<g fill="#111"><rect x="36" y="38" width="13" height="9" rx="4"/><rect x="51" y="38" width="13" height="9" rx="4"/></g><path d="M49 42 H51" stroke="#111" stroke-width="2"/>';
+  if (c.chapeu === 1) g += '<path d="M31 36 Q32 17 50 17 Q68 17 69 36Z" fill="#e5533d"/><path d="M58 34 H82 Q79 41 64 39Z" fill="#b83a28"/>';
+  if (c.chapeu === 2) g += '<ellipse cx="50" cy="31" rx="29" ry="6" fill="#c9a15a"/><path d="M36 30 Q36 11 50 11 Q64 11 64 30Z" fill="#c9a15a"/><path d="M36.5 27 H63.5" stroke="#7a5a2a" stroke-width="3"/>';
+  if (c.chapeu === 3) g += '<path d="M31 35 Q32 11 50 11 Q68 11 69 35Z" fill="#3d8be5"/><rect x="30" y="31" width="40" height="7" rx="3" fill="#2a63a8"/><circle cx="50" cy="10" r="4" fill="#f2f2f2"/>';
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Avatar">${g}</svg>`;
+}
+const usaAvatar = p => !!(p && p.avatar && p.avatar_pref === 'avatar');
+function abreAvatar() { S.avEdit = {cfg: {...AV_PADRAO, ...(S.profile?.avatar || {})}, pref: S.profile?.avatar_pref || (S.profile?.avatar_url ? 'foto' : 'avatar')}; render(); window.scrollTo(0,0); }
+function avSet(k, v) { S.avEdit.cfg[k] = v; const y = window.scrollY; render(); window.scrollTo(0, y); }
+function avPref(v) { S.avEdit.pref = v; const y = window.scrollY; render(); window.scrollTo(0, y); }
+function avAleatorio() {
+  const n = {fundo:AV.fundo.length, cenario:4, pele:AV.pele.length, cabelo:6, cabeloCor:AV.cabeloCor.length, olhos:3, boca:3, roupa:3, roupaCor:AV.roupaCor.length, chapeu:4, oculos:3, mochila:3, extra:4};
+  for (const k in n) S.avEdit.cfg[k] = Math.floor(Math.random() * n[k]);
+  const y = window.scrollY; render(); window.scrollTo(0, y);
+}
+function telaAvatar() {
+  const e = S.avEdit, c = e.cfg;
+  const grupos = AV_GRUPOS.map(([nome, k, lista]) => `<div class="avgrp"><h4>${nome}</h4><div class="avrow">` + (lista
+    ? lista.map((n, i) => `<button type="button" class="pill ${c[k] === i ? 'on' : ''}" onclick="avSet('${k}',${i})">${n}</button>`).join('')
+    : AV[k].map((cor, i) => `<button type="button" class="sw ${c[k] === i ? 'on' : ''}" style="background:${cor}" aria-label="Cor ${i + 1}" onclick="avSet('${k}',${i})"></button>`).join('')) + '</div></div>').join('');
+  return `<div class="wrap"><button class="voltar" onclick="S.avEdit=null;render()">← Voltar</button><h2>Meu avatar</h2>
+  <div class="avprev">${avatarSvg(c)}</div>
+  <button type="button" class="sec full" onclick="avAleatorio()">🎲 Montar aleatório</button>
+  <div class="avgrp"><h4>Mostrar no meu perfil e nas atividades</h4><div class="avrow">
+    <button type="button" class="pill ${e.pref === 'avatar' ? 'on' : ''}" onclick="avPref('avatar')">Meu avatar</button>
+    <button type="button" class="pill ${e.pref === 'foto' ? 'on' : ''}" onclick="avPref('foto')">Minha foto</button></div>
+    ${e.pref === 'foto' && !S.profile?.avatar_url ? '<p class="meta">Você ainda não enviou uma foto. Troque a foto no Perfil.</p>' : ''}</div>
+  ${grupos}
+  <button class="full" style="margin-top:20px" onclick="salvaAvatar()">Salvar avatar</button>${msgHtml()}</div>`;
+}
+async function salvaAvatar() {
+  const e = S.avEdit;
+  const {error} = await sb.from('profiles').update({avatar: e.cfg, avatar_pref: e.pref}).eq('id', S.user.id);
+  if (error) return say('Não foi possível salvar o avatar: ' + pt(error.message), true);
+  await loadProfile(); await loadActs(); S.avEdit = null; S.msg = null; S.tab = 'perfil'; render(); window.scrollTo(0,0);
+}
 const mapaQuery = a => [a.meeting_point || a.title, a.city, 'RS, Brasil'].join(', ');
 const mapaEmbed = a => `<iframe class="mapa" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=${encodeURIComponent(mapaQuery(a))}&z=14&output=embed" title="Mapa do local"></iframe>`;
 // ---- Previsão do tempo (Open-Meteo, gratuito, sem chave)
@@ -174,7 +261,7 @@ function notaCriador(uid) {
 }
 async function loadActs() {
   const {data, error} = await sb.from('activities')
-    .select('*, creator:profiles!creator_id(name, avatar_url), interests(user_id, profiles(name)), reviews(user_id, rating, comment, profiles(name))')
+    .select('*, creator:profiles!creator_id(name, avatar_url, avatar, avatar_pref), interests(user_id, profiles(name)), reviews(user_id, rating, comment, profiles(name))')
     .order('created_at', {ascending:false});
   if (error) return say('Não foi possível carregar as atividades: ' + pt(error.message), true);
   S.acts = data;
@@ -199,7 +286,7 @@ function cardAtividade(a) {
   <div class="corpo"><div class="linha">${badge(a)}<div><h3 style="margin:0 0 4px">${esc(a.title)}</h3>
   <div class="meta">📍 ${esc(a.city)} · ${DIFS[a.difficulty]} · ${dataTxt(a)}</div>
   ${a.meeting_point ? `<div class="meta">Encontro: ${esc(a.meeting_point)}</div>` : ''}
-  <div class="meta">${avatarMini(a.creator?.avatar_url, a.creator?.name)}por ${esc(a.creator?.name || 'alguém')}${notaCriador(a.creator_id)}</div>
+  <div class="meta">${avatarMini(a.creator)}por ${esc(a.creator?.name || 'alguém')}${notaCriador(a.creator_id)}</div>
   <div class="meta">${a.interests.length}${a.max_people ? '/' + a.max_people : ''} participante(s) ${vagasTxt(a) ? '· ' + vagasTxt(a) : ''}${mediaTxt(a) ? ' · ' + mediaTxt(a) : ''} · ${mapaLink(a)}</div>
   ${climaElegivel(a) === 'ok' ? `<div class="meta">${climaBox(a, true)}</div>` : ''}</div></div>
   ${a.description ? `<p>${esc(a.description)}</p>` : ''}
@@ -285,8 +372,8 @@ function perfilTopo(p) {
   const grupos = S.acts.filter(a => a.interests.some(i => i.user_id === S.user.id)).length;
   const rs = minhas.flatMap(a => a.reviews || []);
   const nota = rs.length ? '⭐ ' + (rs.reduce((t, x) => t + x.rating, 0) / rs.length).toFixed(1).replace('.', ',') : '–';
-  const av = p.avatar_url ? `style="background-image:url('${esc(p.avatar_url)}')"` : '';
-  return `<div class="phead"><label class="avatar" ${av} title="Trocar foto">${p.avatar_url ? '' : esc((p.name || '?')[0].toUpperCase())}<input type="file" accept="image/*" onchange="trocaFoto(this)"><span class="cam">📷</span></label><div><h2 style="margin:0">${esc(p.name || 'Sem nome')}</h2><div class="meta">${esc(p.city || '')}</div><div class="meta">Toque na foto para trocar</div></div></div>
+  const av = !usaAvatar(p) && p.avatar_url ? `style="background-image:url('${esc(p.avatar_url)}')"` : '';
+  return `<div class="phead"><label class="avatar" ${av} title="Trocar foto">${usaAvatar(p) ? avatarSvg(p.avatar) : (p.avatar_url ? '' : esc((p.name || '?')[0].toUpperCase()))}<input type="file" accept="image/*" onchange="trocaFoto(this)"><span class="cam">📷</span></label><div><h2 style="margin:0">${esc(p.name || 'Sem nome')}</h2><div class="meta">${esc(p.city || '')}</div><div class="meta">Toque na foto para trocar</div><button class="sec" style="margin-top:8px;padding:6px 12px" onclick="abreAvatar()">🎨 Montar meu avatar</button></div></div>
   <div class="stats"><div><b>${minhas.length}</b>Atividades criadas</div><div><b>${grupos}</b>Grupos</div><div><b>${nota}</b>Nota das suas atividades</div></div>`;
 }
 async function trocaFoto(inp) {
@@ -612,6 +699,7 @@ function render() {
   if (S.user === undefined) { $('app').innerHTML = '<div class="vazio" style="padding-top:40vh">Carregando…</div>'; return; }
   if (!S.user) { $('app').innerHTML = telaAuth(); return; }
   if (S.recovery) { $('app').innerHTML = telaNovaSenha(); return; }
+  if (S.avEdit) { $('app').innerHTML = telaAvatar(); return; }
   const tela = {inicio:telaInicio, explorar:telaExplorar, criar:telaCriar, comunidade:telaComunidade, perfil:telaPerfil}[S.tab]();
   $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${i}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><span class="ic">${i}</span>${n}</button>`).join('')}</nav>` + sinoHtml() + modalHtml();
 }
