@@ -92,7 +92,7 @@ const say = (t, erro) => { S.msg = {t, erro}; render(); };
 
 async function loadActs() {
   const {data, error} = await sb.from('activities')
-    .select('*, creator:profiles!creator_id(name), interests(user_id, profiles(name))')
+    .select('*, creator:profiles!creator_id(name), interests(user_id, profiles(name)), reviews(user_id, rating, comment, profiles(name))')
     .order('created_at', {ascending:false});
   if (error) return say('Não foi possível carregar as atividades: ' + error.message, true);
   S.acts = data;
@@ -116,7 +116,7 @@ function cardAtividade(a) {
   return `<div class="card ev"><div class="topo c-${a.category}" ${a.cover_url ? `style="background:linear-gradient(0deg,rgba(13,17,14,.7),rgba(13,17,14,.05)),url('${esc(a.cover_url)}') center/cover"` : ''}><span class="tag">${CATS[a.category]}</span></div>
   <div class="corpo"><div class="linha">${badge(a)}<div><h3 style="margin:0 0 4px">${esc(a.title)}</h3>
   <div class="meta">📍 ${esc(a.city)} · ${DIFS[a.difficulty]} · ${dataTxt(a)}</div>
-  <div class="meta">por ${esc(a.creator?.name || 'alguém')} · ${a.interests.length} interessado(s)</div></div></div>
+  <div class="meta">por ${esc(a.creator?.name || 'alguém')} · ${a.interests.length} interessado(s)${mediaTxt(a) ? ' · ' + mediaTxt(a) : ''}</div></div></div>
   ${a.description ? `<p>${esc(a.description)}</p>` : ''}
   <button class="full ${eu ? 'sec' : ''}" onclick="toggleInteresse('${a.id}',${eu})">${eu ? 'Sair do grupo' : 'Bora junto'}</button>
   ${dono ? `<div class="row" style="margin-top:8px"><button class="sec" onclick="editar('${a.id}')">Editar</button><button class="sec" onclick="excluir('${a.id}')">Excluir</button></div>` : `<div class="row" style="margin-top:6px"><button class="link" onclick="abreDenuncia('atividade','${a.id}','${a.creator_id}')">Denunciar</button><button class="link" onclick="bloquear('${a.creator_id}')">Bloquear criador</button></div>`}</div></div>`;
@@ -187,7 +187,7 @@ function telaGrupo() {
   <h3 style="margin-top:18px">Datas</h3><div class="card">${ops}
   <div class="row" style="margin-top:8px"><input id="nd" type="date"><button class="sec" onclick="propor()">Sugerir data</button></div>
   ${dono ? '<p class="meta">Como criador, toque em “Definir” para fixar a data escolhida.</p>' : ''}</div>
-  <h3>Chat do grupo</h3><div id="chat" class="chat">${chatHtml()}</div>
+  ${avaliacaoHtml(a)}<h3>Chat do grupo</h3><div id="chat" class="chat">${chatHtml()}</div>
   <div class="row"><input id="cm" maxlength="1000" placeholder="Escreva uma mensagem" onkeydown="if(event.key==='Enter')enviar()"><button style="flex:0 0 auto" onclick="enviar()">Enviar</button></div></div>`;
 }
 function perfilTopo(p) {
@@ -317,7 +317,7 @@ async function loadOpts() {
 }
 function renderChat() { const c = $('chat'); if (c) { c.innerHTML = chatHtml(); c.scrollTop = c.scrollHeight; } }
 async function abrirGrupo(id) {
-  fechaCanal(); S.group = id; S.msgs = []; S.opts = [];
+  fechaCanal(); S.nota = null; S.group = id; S.msgs = []; S.opts = [];
   await Promise.all([loadMsgs(), loadOpts()]);
   render(); renderChat();
   S.canal = sb.channel('chat-' + id).on('postgres_changes', {event:'INSERT', schema:'public', table:'messages', filter:'activity_id=eq.' + id},
@@ -389,6 +389,35 @@ async function desbloquear(uid) {
   const {error} = await sb.from('blocks').delete().match({blocker_id: S.user.id, blocked_id: uid});
   if (error) return alert('Erro: ' + error.message);
   await loadBlocks(); await loadActs(); render();
+}
+
+// ---------- Avaliações ----------
+const hoje = () => new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD
+const passou = a => a.date_mode === 'definida' && a.event_date && a.event_date <= hoje();
+function mediaTxt(a) {
+  if (!a.reviews || !a.reviews.length) return '';
+  const m = a.reviews.reduce((t, r) => t + r.rating, 0) / a.reviews.length;
+  return `⭐ ${m.toFixed(1).replace('.', ',')} (${a.reviews.length})`;
+}
+function avaliacaoHtml(a) {
+  if (!passou(a)) return `<h3 style="margin-top:18px">Avaliação</h3><p class="meta">A avaliação abre depois da data da atividade${a.date_mode === 'definida' ? '' : ' (defina a data primeiro)'}.</p>`;
+  const minha = a.reviews.find(r => r.user_id === S.user.id);
+  const nota = S.nota ?? minha?.rating ?? 0;
+  const outros = a.reviews.filter(r => r.comment).map(r => `<div class="meta" style="margin-top:8px">${'★'.repeat(r.rating)} <b>${esc(r.profiles?.name || 'Alguém')}</b>: ${esc(r.comment)}</div>`).join('');
+  return `<h3 style="margin-top:18px">Avaliação ${mediaTxt(a) ? '· ' + mediaTxt(a) : ''}</h3><div class="card"><p class="meta" style="margin-top:0">Como foi a experiência?</p>
+  <div class="pills" id="est">${[1,2,3,4,5].map(n => `<button class="pill ${nota >= n ? 'on' : ''}" onclick="setNota(${n})">${n}★</button>`).join('')}</div>
+  <textarea id="rc" rows="2" maxlength="300" placeholder="Comentário (opcional)">${esc(minha?.comment)}</textarea>
+  <button class="full" onclick="salvaAval()">${minha ? 'Atualizar avaliação' : 'Enviar avaliação'}</button>${outros}</div>`;
+}
+function setNota(n) { S.nota = n; document.querySelectorAll('#est .pill').forEach((b, i) => b.classList.toggle('on', i + 1 <= n)); }
+async function salvaAval() {
+  const a = S.acts.find(x => x.id === S.group);
+  const minha = a.reviews.find(r => r.user_id === S.user.id);
+  const nota = S.nota ?? minha?.rating;
+  if (!nota) return alert('Escolha de 1 a 5 estrelas.');
+  const {error} = await sb.from('reviews').upsert({activity_id: S.group, user_id: S.user.id, rating: nota, comment: $('rc').value.trim() || null}, {onConflict: 'activity_id,user_id'});
+  if (error) return alert('Não foi possível salvar: ' + error.message);
+  S.nota = null; await loadActs(); render(); renderChat(); alert('Avaliação salva. Obrigado!');
 }
 
 // ---------- Render ----------
