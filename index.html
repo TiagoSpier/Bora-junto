@@ -426,7 +426,8 @@ async function salvaAval() {
 
 // ---------- Notificações ----------
 async function loadNotifs() {
-  const {data} = await sb.from('notifications').select('*').order('created_at', {ascending: false}).limit(30);
+  const {data, error} = await sb.from('notifications').select('*').order('created_at', {ascending: false}).limit(30);
+  S.notifErr = error ? error.message : null;
   S.notifs = data || [];
 }
 const naoLidas = () => S.notifs.filter(n => !n.read).length;
@@ -445,6 +446,7 @@ function notifPanel() {
   const quando = d => new Date(d).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
   return `<div id="npanel" class="modal" onclick="if(event.target===this)fechaNotif()"><div class="card" style="max-height:80vh;overflow:auto">
   <div class="row" style="align-items:center"><h3 style="margin:0">Notificações</h3><button class="link" style="text-align:right" onclick="lerTodas()">Marcar todas como lidas</button></div>
+  ${S.notifErr ? `<div class="msg erro">Erro ao carregar os avisos: ${esc(S.notifErr)}</div>` : ''}
   ${S.notifs.length ? S.notifs.map(n => `<div class="notif ${n.read ? '' : 'nova'}" onclick="abreNotificacao('${n.id}','${n.activity_id}')">${esc(n.text)}<div class="meta">${quando(n.created_at)}</div></div>`).join('') : '<p class="meta">Nenhuma notificação por enquanto.</p>'}
   <button class="sec full" onclick="fechaNotif()">Fechar</button></div></div>`;
 }
