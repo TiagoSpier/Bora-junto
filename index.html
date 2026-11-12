@@ -62,6 +62,10 @@ nav .mais span{display:grid;place-items:center;width:46px;height:46px;margin:-24
 .link{background:none;color:var(--mudo);padding:4px 0;font-weight:500;font-size:.8rem;text-decoration:underline}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:16px;z-index:20}
 .modal .card{max-width:420px;width:100%;margin:0}
+.sino{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:12px;z-index:15;background:rgba(13,17,14,.75);border:1px solid var(--linha);border-radius:50%;width:42px;height:42px;padding:0;font-size:1.1rem;color:var(--texto)}
+.badge{position:absolute;top:-4px;right:-4px;background:var(--lima);color:var(--on-lima);border-radius:99px;min-width:18px;height:18px;font-size:.7rem;place-items:center;padding:0 4px}
+.notif{padding:10px 12px;border-radius:10px;margin-top:8px;background:var(--card2);cursor:pointer}
+.notif.nova{border-left:3px solid var(--lima)}
 .voltar{background:none;color:var(--lima);padding:0 0 8px;font-weight:600}
 .phead{display:flex;gap:14px;align-items:center;margin-bottom:12px}
 .avatar{width:64px;height:64px;border-radius:50%;background:var(--lima);color:var(--on-lima);display:grid;place-items:center;font-size:1.8rem;font-weight:700}
@@ -82,7 +86,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const CATS = {trilha:'Trilha',cachoeira:'Cachoeira',camping:'Camping',passeio:'Passeio',viagem:'Viagem'};
 const DIFS = {facil:'Fácil',moderada:'Moderada',dificil:'Difícil'};
 const CIDADES = ['Gramado','Canela','São Francisco de Paula','Cambará do Sul','Nova Petrópolis','Igrejinha','Três Coroas','Picada Café'];
-const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null,group:null,msgs:[],opts:[],canal:null,rep:null,blocks:[]};
+const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null,group:null,msgs:[],opts:[],canal:null,rep:null,blocks:[],notifs:[],notifCanal:null};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const opts = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
@@ -381,7 +385,7 @@ async function bloquear(uid) {
   if (!confirm('Bloquear ' + nome + '? Você não verá mais as atividades e mensagens dessa pessoa, e ela também não verá as suas.')) return;
   const {error} = await sb.from('blocks').insert({blocker_id: S.user.id, blocked_id: uid, blocked_name: nome});
   if (error) return alert('Erro ao bloquear: ' + error.message);
-  await loadBlocks(); await loadActs();
+  await loadBlocks(); await loadNotifs(); assinaNotif(); await loadActs();
   if (S.group) { if (S.acts.some(a => a.id === S.group)) await loadMsgs(); else { fechaCanal(); S.group = null; } }
   render(); renderChat();
 }
@@ -420,6 +424,43 @@ async function salvaAval() {
   S.nota = null; await loadActs(); render(); renderChat(); alert('Avaliação salva. Obrigado!');
 }
 
+// ---------- Notificações ----------
+async function loadNotifs() {
+  const {data} = await sb.from('notifications').select('*').order('created_at', {ascending: false}).limit(30);
+  S.notifs = data || [];
+}
+const naoLidas = () => S.notifs.filter(n => !n.read).length;
+function sinoHtml() { const n = naoLidas(); return `<button class="sino" onclick="abreNotif()" aria-label="Notificações">🔔<span id="sinoN" class="badge" style="display:${n ? 'grid' : 'none'}">${n}</span></button>`; }
+function refreshSino() {
+  const b = $('sinoN'); if (b) { const n = naoLidas(); b.textContent = n; b.style.display = n ? 'grid' : 'none'; }
+  const p = $('npanel'); if (p) p.outerHTML = notifPanel();
+}
+function assinaNotif() {
+  if (S.notifCanal) sb.removeChannel(S.notifCanal);
+  S.notifCanal = sb.channel('notif-' + S.user.id).on('postgres_changes',
+    {event: 'INSERT', schema: 'public', table: 'notifications', filter: 'user_id=eq.' + S.user.id},
+    async () => { await loadNotifs(); refreshSino(); }).subscribe();
+}
+function notifPanel() {
+  const quando = d => new Date(d).toLocaleString('pt-BR', {day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'});
+  return `<div id="npanel" class="modal" onclick="if(event.target===this)fechaNotif()"><div class="card" style="max-height:80vh;overflow:auto">
+  <div class="row" style="align-items:center"><h3 style="margin:0">Notificações</h3><button class="link" style="text-align:right" onclick="lerTodas()">Marcar todas como lidas</button></div>
+  ${S.notifs.length ? S.notifs.map(n => `<div class="notif ${n.read ? '' : 'nova'}" onclick="abreNotificacao('${n.id}','${n.activity_id}')">${esc(n.text)}<div class="meta">${quando(n.created_at)}</div></div>`).join('') : '<p class="meta">Nenhuma notificação por enquanto.</p>'}
+  <button class="sec full" onclick="fechaNotif()">Fechar</button></div></div>`;
+}
+function abreNotif() { fechaNotif(); document.body.insertAdjacentHTML('beforeend', notifPanel()); }
+function fechaNotif() { const p = $('npanel'); if (p) p.remove(); }
+async function lerTodas() {
+  await sb.from('notifications').update({read: true}).eq('user_id', S.user.id).eq('read', false);
+  await loadNotifs(); refreshSino();
+}
+async function abreNotificacao(id, actId) {
+  await sb.from('notifications').update({read: true}).eq('id', id);
+  await loadNotifs(); fechaNotif(); refreshSino();
+  S.tab = 'comunidade'; S.edit = null;
+  if (S.acts.some(a => a.id === actId)) await abrirGrupo(actId); else render();
+}
+
 // ---------- Render ----------
 const ABAS = [['inicio','Início','🏠'],['explorar','Explorar','🧭'],['criar','Criar','＋'],['comunidade','Comunidade','👥'],['perfil','Perfil','👤']];
 function render() {
@@ -427,14 +468,14 @@ function render() {
   if (S.user === undefined) { $('app').innerHTML = '<div class="vazio" style="padding-top:40vh">Carregando…</div>'; return; }
   if (!S.user) { $('app').innerHTML = telaAuth(); return; }
   const tela = {inicio:telaInicio, explorar:telaExplorar, criar:telaCriar, comunidade:telaComunidade, perfil:telaPerfil}[S.tab]();
-  $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${i}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><span class="ic">${i}</span>${n}</button>`).join('')}</nav>` + modalHtml();
+  $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${i}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><span class="ic">${i}</span>${n}</button>`).join('')}</nav>` + sinoHtml() + modalHtml();
 }
 sb.auth.onAuthStateChange((_ev, session) => {
   S.user = session?.user ?? null;
   // setTimeout evita travar o Supabase ao fazer consultas dentro deste evento
   setTimeout(async () => {
     try {
-      if (S.user) { await loadProfile(); await loadBlocks(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; }
+      if (S.user) { await loadProfile(); await loadBlocks(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; S.notifs = []; if (S.notifCanal) { sb.removeChannel(S.notifCanal); S.notifCanal = null; } }
     } catch (e) { S.msg = {t: 'Erro ao carregar: ' + e.message, erro: true}; }
     render();
   }, 0);
