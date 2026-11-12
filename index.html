@@ -235,7 +235,7 @@ async function autentica(e) {
   e.preventDefault();
   const email = $('ae').value.trim(), password = $('as').value;
   if (S.authMode === 'cadastro') {
-    const {data, error} = await sb.auth.signUp({email, password, options:{data:{name:$('an').value.trim()}}});
+    const {data, error} = await sb.auth.signUp({email, password, options:{data:{name:$('an').value.trim()}, emailRedirectTo: location.origin + location.pathname}});
     if (error) return say('Erro: ' + error.message, true);
     if (!data.session) say('Conta criada. Confirme seu e-mail e depois entre.');
   } else {
