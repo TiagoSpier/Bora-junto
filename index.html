@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Bora Junto</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d110e">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bora Junto">
 <style>
 :root{--bg:#0d110e;--card:#171d18;--card2:#1f2721;--lima:#8fe05a;--texto:#f2f5ef;--mudo:#9aa597;--linha:#2a342c;--erro:#ff8a7a;--on-lima:#10200a}
 *{box-sizing:border-box}
@@ -208,7 +214,7 @@ function telaPerfil() {
   <label for="pi">Interesses (separados por vírgula)</label><input id="pi" value="${esc((p.interests||[]).join(', '))}" placeholder="trilha, camping, cachoeira">
   <label for="pb">Sobre mim</label><textarea id="pb" rows="3" maxlength="300">${esc(p.bio)}</textarea>
   <button class="full">Salvar perfil</button></form>${msgHtml()}
-  <h3 style="margin-top:24px">Usuários bloqueados</h3>
+  ${instalarHtml()}<h3 style="margin-top:24px">Usuários bloqueados</h3>
   ${S.blocks.length ? S.blocks.map(b => `<div class="row" style="align-items:center;margin-bottom:8px"><span>${esc(b.blocked_name || 'Usuário')}</span><button class="sec" onclick="desbloquear('${b.blocked_id}')">Desbloquear</button></div>`).join('') : '<p class="meta">Você não bloqueou ninguém.</p>'}
   <p class="meta">${esc(S.user.email)}</p><button class="sec full" onclick="sair()">Sair da conta</button></div>`;
 }
@@ -462,6 +468,17 @@ async function abreNotificacao(id, actId) {
   S.tab = 'comunidade'; S.edit = null;
   if (S.acts.some(a => a.id === actId)) await abrirGrupo(actId); else render();
 }
+
+// ---------- App instalável ----------
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.instalar = e; });
+function instalarHtml() {
+  if (window.matchMedia('(display-mode: standalone)').matches) return '';
+  return `<div class="card" style="margin-top:20px"><h3>Instalar o app</h3>${S.instalar
+    ? '<button class="full" onclick="instalarApp()">Instalar Bora Junto</button>'
+    : '<p class="meta" style="margin:0">Android (Chrome): menu ⋮ e depois Instalar app.<br>iPhone (Safari): botão Compartilhar e depois Adicionar à Tela de Início.</p>'}</div>`;
+}
+async function instalarApp() { const e = S.instalar; S.instalar = null; render(); if (e) e.prompt(); }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 // ---------- Render ----------
 const ABAS = [['inicio','Início','🏠'],['explorar','Explorar','🧭'],['criar','Criar','＋'],['comunidade','Comunidade','👥'],['perfil','Perfil','👤']];
