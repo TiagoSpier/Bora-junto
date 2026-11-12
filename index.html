@@ -385,7 +385,7 @@ async function bloquear(uid) {
   if (!confirm('Bloquear ' + nome + '? Você não verá mais as atividades e mensagens dessa pessoa, e ela também não verá as suas.')) return;
   const {error} = await sb.from('blocks').insert({blocker_id: S.user.id, blocked_id: uid, blocked_name: nome});
   if (error) return alert('Erro ao bloquear: ' + error.message);
-  await loadBlocks(); await loadNotifs(); assinaNotif(); await loadActs();
+  await loadBlocks(); await loadActs();
   if (S.group) { if (S.acts.some(a => a.id === S.group)) await loadMsgs(); else { fechaCanal(); S.group = null; } }
   render(); renderChat();
 }
@@ -477,7 +477,7 @@ sb.auth.onAuthStateChange((_ev, session) => {
   // setTimeout evita travar o Supabase ao fazer consultas dentro deste evento
   setTimeout(async () => {
     try {
-      if (S.user) { await loadProfile(); await loadBlocks(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; S.notifs = []; if (S.notifCanal) { sb.removeChannel(S.notifCanal); S.notifCanal = null; } }
+      if (S.user) { await loadProfile(); await loadBlocks(); await loadNotifs(); assinaNotif(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; S.notifs = []; if (S.notifCanal) { sb.removeChannel(S.notifCanal); S.notifCanal = null; } }
     } catch (e) { S.msg = {t: 'Erro ao carregar: ' + e.message, erro: true}; }
     render();
   }, 0);
