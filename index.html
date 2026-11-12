@@ -59,6 +59,9 @@ nav .mais span{display:grid;place-items:center;width:46px;height:46px;margin:-24
 .bolha.eu{background:var(--lima);color:var(--on-lima);margin-left:auto}
 .bolha small{display:block;opacity:.7;font-size:.75rem}
 .prev{height:150px;border-radius:12px;margin-top:8px;background:var(--card2) center/cover;display:none}
+.link{background:none;color:var(--mudo);padding:4px 0;font-weight:500;font-size:.8rem;text-decoration:underline}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:16px;z-index:20}
+.modal .card{max-width:420px;width:100%;margin:0}
 .voltar{background:none;color:var(--lima);padding:0 0 8px;font-weight:600}
 .phead{display:flex;gap:14px;align-items:center;margin-bottom:12px}
 .avatar{width:64px;height:64px;border-radius:50%;background:var(--lima);color:var(--on-lima);display:grid;place-items:center;font-size:1.8rem;font-weight:700}
@@ -79,7 +82,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const CATS = {trilha:'Trilha',cachoeira:'Cachoeira',camping:'Camping',passeio:'Passeio',viagem:'Viagem'};
 const DIFS = {facil:'Fácil',moderada:'Moderada',dificil:'Difícil'};
 const CIDADES = ['Gramado','Canela','São Francisco de Paula','Cambará do Sul','Nova Petrópolis','Igrejinha','Três Coroas','Picada Café'];
-const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null,group:null,msgs:[],opts:[],canal:null};
+const S = {user:undefined,profile:null,tab:'inicio',acts:[],f:{city:'',cat:'',dif:''},msg:null,authMode:'login',edit:null,group:null,msgs:[],opts:[],canal:null,rep:null,blocks:[]};
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const opts = (o, sel) => Object.entries(o).map(([k,v]) => `<option value="${k}" ${k===sel?'selected':''}>${v}</option>`).join('');
@@ -116,7 +119,7 @@ function cardAtividade(a) {
   <div class="meta">por ${esc(a.creator?.name || 'alguém')} · ${a.interests.length} interessado(s)</div></div></div>
   ${a.description ? `<p>${esc(a.description)}</p>` : ''}
   <button class="full ${eu ? 'sec' : ''}" onclick="toggleInteresse('${a.id}',${eu})">${eu ? 'Sair do grupo' : 'Bora junto'}</button>
-  ${dono ? `<div class="row" style="margin-top:8px"><button class="sec" onclick="editar('${a.id}')">Editar</button><button class="sec" onclick="excluir('${a.id}')">Excluir</button></div>` : ''}</div></div>`;
+  ${dono ? `<div class="row" style="margin-top:8px"><button class="sec" onclick="editar('${a.id}')">Editar</button><button class="sec" onclick="excluir('${a.id}')">Excluir</button></div>` : `<div class="row" style="margin-top:6px"><button class="link" onclick="abreDenuncia('atividade','${a.id}','${a.creator_id}')">Denunciar</button><button class="link" onclick="bloquear('${a.creator_id}')">Bloquear criador</button></div>`}</div></div>`;
 }
 const lista = (arr, vazio) => arr.length ? arr.map(cardAtividade).join('') : `<div class="vazio">${vazio}</div>`;
 
@@ -169,7 +172,7 @@ function telaComunidade() {
 }
 const fd = d => new Date(d + 'T12:00').toLocaleDateString('pt-BR');
 function chatHtml() {
-  return S.msgs.length ? S.msgs.map(m => `<div class="bolha ${m.user_id === S.user.id ? 'eu' : ''}"><small>${esc(m.profiles?.name || 'Alguém')}</small>${esc(m.content)}</div>`).join('') : '<div class="vazio">Nenhuma mensagem ainda. Diga um oi!</div>';
+  return S.msgs.length ? S.msgs.map(m => `<div class="bolha ${m.user_id === S.user.id ? 'eu' : ''}"><small>${esc(m.profiles?.name || 'Alguém')}</small>${esc(m.content)}${m.user_id !== S.user.id ? `<div><button class="link" onclick="abreDenuncia('mensagem','${m.id}','${m.user_id}')">Denunciar</button> <button class="link" onclick="bloquear('${m.user_id}')">Bloquear</button></div>` : ''}</div>`).join('') : '<div class="vazio">Nenhuma mensagem ainda. Diga um oi!</div>';
 }
 function telaGrupo() {
   const a = S.acts.find(x => x.id === S.group);
@@ -201,6 +204,8 @@ function telaPerfil() {
   <label for="pi">Interesses (separados por vírgula)</label><input id="pi" value="${esc((p.interests||[]).join(', '))}" placeholder="trilha, camping, cachoeira">
   <label for="pb">Sobre mim</label><textarea id="pb" rows="3" maxlength="300">${esc(p.bio)}</textarea>
   <button class="full">Salvar perfil</button></form>${msgHtml()}
+  <h3 style="margin-top:24px">Usuários bloqueados</h3>
+  ${S.blocks.length ? S.blocks.map(b => `<div class="row" style="align-items:center;margin-bottom:8px"><span>${esc(b.blocked_name || 'Usuário')}</span><button class="sec" onclick="desbloquear('${b.blocked_id}')">Desbloquear</button></div>`).join('') : '<p class="meta">Você não bloqueou ninguém.</p>'}
   <p class="meta">${esc(S.user.email)}</p><button class="sec full" onclick="sair()">Sair da conta</button></div>`;
 }
 function telaAuth() {
@@ -343,6 +348,49 @@ async function definirData(d) {
   await loadActs(); render(); renderChat();
 }
 
+// ---------- Denúncia e bloqueio ----------
+async function loadBlocks() {
+  const {data} = await sb.from('blocks').select('blocked_id, blocked_name').eq('blocker_id', S.user.id);
+  S.blocks = data || [];
+}
+function nomeDe(uid) {
+  for (const a of S.acts) {
+    if (a.creator_id === uid && a.creator?.name) return a.creator.name;
+    const i = a.interests.find(x => x.user_id === uid && x.profiles?.name); if (i) return i.profiles.name;
+  }
+  const m = S.msgs.find(x => x.user_id === uid && x.profiles?.name); return m ? m.profiles.name : 'este usuário';
+}
+function modalHtml() {
+  if (!S.rep) return '';
+  return `<div class="modal"><div class="card"><h3>Denunciar</h3>
+  <label for="rm">Motivo</label><select id="rm"><option value="spam">Spam ou propaganda</option><option value="ofensivo">Conteúdo ofensivo ou assédio</option><option value="falso">Perfil ou atividade falsa</option><option value="perigoso">Atividade perigosa ou ilegal</option><option value="outro">Outro</option></select>
+  <label for="rd">Detalhes (opcional)</label><textarea id="rd" rows="3" maxlength="500"></textarea>
+  <div class="row" style="margin-top:14px"><button class="sec" onclick="fechaRep()">Cancelar</button><button onclick="enviaDenuncia()">Enviar</button></div></div></div>`;
+}
+function abreDenuncia(tipo, id, user) { S.rep = {tipo, id, user}; render(); renderChat(); }
+function fechaRep() { S.rep = null; render(); renderChat(); }
+async function enviaDenuncia() {
+  const r = S.rep;
+  const {error} = await sb.from('reports').insert({reporter_id: S.user.id, target_type: r.tipo, target_id: r.id, reported_user_id: r.user,
+    reason: $('rm').value, details: $('rd').value.trim()});
+  if (error) return alert('Não foi possível enviar: ' + error.message);
+  fechaRep(); alert('Denúncia enviada. Obrigado por ajudar a manter a comunidade segura.');
+}
+async function bloquear(uid) {
+  const nome = nomeDe(uid);
+  if (!confirm('Bloquear ' + nome + '? Você não verá mais as atividades e mensagens dessa pessoa, e ela também não verá as suas.')) return;
+  const {error} = await sb.from('blocks').insert({blocker_id: S.user.id, blocked_id: uid, blocked_name: nome});
+  if (error) return alert('Erro ao bloquear: ' + error.message);
+  await loadBlocks(); await loadActs();
+  if (S.group) { if (S.acts.some(a => a.id === S.group)) await loadMsgs(); else { fechaCanal(); S.group = null; } }
+  render(); renderChat();
+}
+async function desbloquear(uid) {
+  const {error} = await sb.from('blocks').delete().match({blocker_id: S.user.id, blocked_id: uid});
+  if (error) return alert('Erro: ' + error.message);
+  await loadBlocks(); await loadActs(); render();
+}
+
 // ---------- Render ----------
 const ABAS = [['inicio','Início','🏠'],['explorar','Explorar','🧭'],['criar','Criar','＋'],['comunidade','Comunidade','👥'],['perfil','Perfil','👤']];
 function render() {
@@ -350,14 +398,14 @@ function render() {
   if (S.user === undefined) { $('app').innerHTML = '<div class="vazio" style="padding-top:40vh">Carregando…</div>'; return; }
   if (!S.user) { $('app').innerHTML = telaAuth(); return; }
   const tela = {inicio:telaInicio, explorar:telaExplorar, criar:telaCriar, comunidade:telaComunidade, perfil:telaPerfil}[S.tab]();
-  $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${i}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><span class="ic">${i}</span>${n}</button>`).join('')}</nav>`;
+  $('app').innerHTML = tela + dl + `<nav>${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${i}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" onclick="go('${k}')"><span class="ic">${i}</span>${n}</button>`).join('')}</nav>` + modalHtml();
 }
 sb.auth.onAuthStateChange((_ev, session) => {
   S.user = session?.user ?? null;
   // setTimeout evita travar o Supabase ao fazer consultas dentro deste evento
   setTimeout(async () => {
     try {
-      if (S.user) { await loadProfile(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; }
+      if (S.user) { await loadProfile(); await loadBlocks(); await loadActs(); S.msg = null; } else { S.profile = null; S.acts = []; }
     } catch (e) { S.msg = {t: 'Erro ao carregar: ' + e.message, erro: true}; }
     render();
   }, 0);
