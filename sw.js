@@ -1,6 +1,6 @@
 // Bora Junto: service worker simples (rede primeiro, cache como reserva)
-const CACHE = 'bora-junto-v1';
-const BASE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'foto-capa.jpg'];
+const CACHE = 'bora-junto-v2';
+const BASE = ['./', 'index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'foto-capa.jpg', 'foto-trilha.jpg', 'foto-cachoeira.jpg', 'foto-camping.jpg', 'foto-passeio.jpg', 'foto-viagem.jpg'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(BASE.map(u => c.add(u).catch(() => {})))));
   self.skipWaiting();
