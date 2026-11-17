@@ -181,6 +181,17 @@ nav button{position:relative}nav .nb{position:absolute;top:5px;left:calc(50% + 6
 .dmhead h2{margin:0;font-size:1.2rem;min-width:0;overflow-wrap:anywhere}
 .menu.inl{position:relative;top:0;right:0;margin-left:auto}.menu.inl summary{background:var(--card2)}
 .chat.dm{height:calc(100dvh - 370px);min-height:240px}
+.grp .topo{height:132px}
+.grp .corpo h3{margin-bottom:6px}
+.pilha{display:flex;align-items:center;margin-top:12px;color:var(--mudo);font-size:.88rem}
+.pilha .pav{width:30px;height:30px;font-size:.8rem;border:2px solid var(--card);margin-left:-8px}
+.pilha .pav:first-child{margin-left:0}
+.pilha .mais-p{background:var(--card2);color:var(--texto);font-size:.72rem}
+.pilha>span:last-child{margin-left:10px}
+.fim{position:absolute;right:56px;top:12px;background:rgba(11,15,12,.78);border-radius:99px;padding:3px 12px;font-size:.78rem;font-weight:600;color:#ffd0c9}
+.grp.velha .topo{filter:saturate(.45) brightness(.85)}
+.gcapa{height:190px;border-radius:var(--r);position:relative;margin-bottom:14px;border:1px solid var(--linha)}
+.sub-t{font-size:.8rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mudo);margin:22px 0 10px}
 .conv{display:flex;align-items:center;gap:12px}.conv>div{flex:1;min-width:0}.conv h3{margin:0;font-size:1.02rem}
 
 /* Janelas */
@@ -425,7 +436,7 @@ function notaCriador(uid) {
 }
 async function loadActs() {
   const {data, error} = await sb.from('activities')
-    .select('*, creator:profiles!creator_id(name, avatar_url, avatar, avatar_pref), interests(user_id, profiles(name)), reviews(user_id, rating, comment, profiles(name))')
+    .select('*, creator:profiles!creator_id(name, avatar_url, avatar, avatar_pref), interests(user_id, profiles(name, avatar_url, avatar, avatar_pref)), reviews(user_id, rating, comment, profiles(name))')
     .order('created_at', {ascending:false});
   if (error) return say('Não foi possível carregar as atividades: ' + pt(error.message), true);
   S.acts = data;
@@ -524,12 +535,30 @@ function telaComunidade() {
   const abas = S.dmOff ? '' : `<div class="seg" role="tablist"><button role="tab" aria-selected="${S.comTab !== 'conversas'}" class="${S.comTab !== 'conversas' ? 'on' : ''}" onclick="S.comTab='grupos';render()">Grupos</button><button role="tab" aria-selected="${S.comTab === 'conversas'}" class="${S.comTab === 'conversas' ? 'on' : ''}" onclick="S.comTab='conversas';render()">Conversas${nDm ? `<i class="nb">${nDm}</i>` : ''}</button></div>`;
   if (S.comTab === 'conversas' && !S.dmOff) return `<div class="wrap"><h2>Comunidade</h2>${abas}${conversasHtml()}</div>`;
   const meus = S.acts.filter(a => a.interests.some(i => i.user_id === S.user.id));
-  return `<div class="wrap"><h2>Comunidade</h2>${abas}<p class="meta">Atividades em que você entrou. Abra o grupo para ver os participantes, conversar e votar na data.</p>
-  ${meus.length ? meus.map(a => `<div class="card"><h3>${esc(a.title)}</h3>
-    <div class="info"><span>${ic('pin', 16)}${esc(a.city)}</span><span>${ic('cal', 16)}${dataCurta(a)}</span><span>${ic('users', 16)}${a.interests.length}${a.max_people ? '/' + a.max_people : ''}</span>${ativa(a) ? '' : '<span class="dif">Encerrada</span>'}</div>
-    <p class="meta">${a.interests.map(i => esc(i.profiles?.name || 'Sem nome')).join(', ')}</p>
-    <div class="row"><button onclick="abrirGrupo('${a.id}')">Abrir grupo</button><button class="sec" onclick="toggleInteresse('${a.id}',true,this)">Sair do grupo</button></div></div>`).join('')
-    : semNada('users', 'Você ainda não está em nenhum grupo', 'Encontre uma atividade em Explorar e toque em “Bora junto”.', `<button onclick="go('explorar')">Explorar atividades</button>`)}</div>`;
+  const chave = a => a.date_mode === 'definida' && a.event_date ? a.event_date : '9999'; // com data primeiro (a mais próxima no topo), depois "a combinar"
+  const ativos = meus.filter(ativa).sort((x, y) => chave(x).localeCompare(chave(y)));
+  const antigos = meus.filter(a => !ativa(a)).sort((x, y) => y.event_date.localeCompare(x.event_date));
+  return `<div class="wrap"><h2>Comunidade</h2>${abas}
+  ${meus.length ? '' : semNada('users', 'Você ainda não está em nenhum grupo', 'Encontre uma atividade em Explorar e toque em “Bora junto”.', `<button onclick="go('explorar')">Explorar atividades</button>`)}
+  ${ativos.map(cardGrupo).join('')}
+  ${antigos.length ? `<div class="sub-t">Encerrados</div>${antigos.map(cardGrupo).join('')}` : ''}</div>`;
+}
+const capaAttr = a => a.cover_url ? `style="background:linear-gradient(0deg,rgba(11,15,12,.75),rgba(11,15,12,.05) 60%),url('${esc(a.cover_url)}') center/cover"` : '';
+function pilhaHtml(a) {
+  const ps = a.interests.map(i => S.parts[i.user_id] || i.profiles || {}), n = ps.length;
+  return `<div class="pilha">${ps.slice(0, 5).map(p => avatarEl(p, 'pav')).join('')}${n > 5 ? `<span class="pav mais-p">+${n - 5}</span>` : ''}<span>${n === 1 ? '1 participante' : n + ' participantes'}${a.max_people ? ' de ' + a.max_people : ''}</span></div>`;
+}
+function cardGrupo(a) {
+  const dono = a.creator_id === S.user.id, velha = !ativa(a);
+  const avaliei = (a.reviews || []).some(r => r.user_id === S.user.id);
+  const menu = (dono ? `<button onclick="editar('${a.id}')">Editar atividade</button>` : '') + `<button class="per" onclick="toggleInteresse('${a.id}',true)">Sair do grupo</button>`;
+  return `<article class="card ev grp ${velha ? 'velha' : ''}"><div class="topo c-${a.category}" ${capaAttr(a)}>
+    <span class="tag">${CATS[a.category] || 'Atividade'}</span>${badge(a)}${velha ? '<span class="fim">Encerrada</span>' : ''}
+    <details class="menu"><summary aria-label="Mais opções">${ic('more')}</summary><div class="menu-l">${menu}</div></details></div>
+  <div class="corpo"><h3>${esc(a.title)}</h3>
+  <div class="info"><span>${ic('pin', 16)}${esc(a.city)}</span><span>${ic('cal', 16)}${dataCurta(a)}</span>${dono ? '<span class="dif d-facil">Você organiza</span>' : ''}</div>
+  ${pilhaHtml(a)}
+  <button class="full ${velha && avaliei ? 'sec' : ''}" onclick="abrirGrupo('${a.id}')">${velha ? (avaliei ? 'Abrir grupo' : 'Abrir e avaliar') : `${ic('chat', 18)} Abrir grupo`}</button></div></article>`;
 }
 const fd = d => new Date(d + 'T12:00').toLocaleDateString('pt-BR');
 const horaMsg = d => d ? new Date(d).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
@@ -540,13 +569,14 @@ function chatHtml() {
 }
 function telaGrupo() {
   const a = S.acts.find(x => x.id === S.group);
-  if (!a) return `<div class="wrap">${semNada('users', 'Grupo não encontrado', 'Esta atividade pode ter sido removida.', `<button onclick="go('comunidade')">Voltar para Meus grupos</button>`)}</div>`;
+  if (!a) return `<div class="wrap">${semNada('users', 'Grupo não encontrado', 'Esta atividade pode ter sido removida.', `<button onclick="go('comunidade')">Voltar para Grupos</button>`)}</div>`;
   const dono = a.creator_id === S.user.id;
   const ops = S.opts.length ? S.opts.map(o => { const eu = o.date_votes.some(v => v.user_id === S.user.id);
     return `<div class="opc"><span><b>${fd(o.option_date)}</b><br><span class="meta">${o.date_votes.length === 1 ? '1 voto' : o.date_votes.length + ' votos'}</span></span>
     <button class="${eu ? 'sec' : ''}" onclick="votar('${o.id}',${eu})">${eu ? 'Tirar voto' : 'Votar'}</button>
     ${dono ? `<button class="sec" onclick="definirData('${o.option_date}')">Definir</button>` : ''}</div>`; }).join('') : '<p class="meta" style="margin-top:0">Ninguém sugeriu data ainda.</p>';
-  return `<div class="wrap"><button class="voltar" onclick="go('comunidade')">${ic('back', 18)} Meus grupos</button>
+  return `<div class="wrap"><button class="voltar" onclick="go('comunidade')">${ic('back', 18)} Grupos</button>
+  <div class="gcapa c-${a.category}" ${capaAttr(a)}><span class="tag">${CATS[a.category] || 'Atividade'}</span>${badge(a)}</div>
   <h2>${esc(a.title)}</h2>
   <div class="info"><span>${ic('pin', 16)}${esc(a.city)}</span><span>${ic('cal', 16)}${dataTxt(a)}</span><span>${ic('users', 16)}${a.interests.length}${a.max_people ? '/' + a.max_people : ''} participante(s)</span></div>
   ${a.meeting_point ? `<div class="meta" style="margin-top:6px">Encontro: ${esc(a.meeting_point)}</div>` : ''}
