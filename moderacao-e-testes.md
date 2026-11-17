@@ -48,3 +48,22 @@ Tarefas (peça que façam sozinhos, sem ajuda):
 Perguntas depois (anote respostas): Onde travou? O que não entendeu? Usaria de verdade? O que faltou? Algum texto confuso?
 Critério para lançar: todos completam 1 a 7 sem ajuda e nenhum erro grave aparece.
 Duração sugerida: 1 semana. Corrija o que mais se repetir primeiro.
+
+## 4. Conversa privada
+Instalação: rode UMA vez o arquivo `conversa-privada.sql` no Supabase (SQL Editor > colar tudo > Run).
+Regras: só entre pessoas do mesmo grupo, só depois do aceite, quem foi recusado não pede de novo, bloqueio encerra a conversa.
+
+Denúncia de conversa privada: aparece na consulta de denúncias (seção 2) com `target_type = mensagem` e os detalhes começando com `[Conversa privada]`. O `target_id` é o código da conversa. Para ler as mensagens dessa conversa (somente quando houver denúncia):
+```sql
+select m.created_at, p.name as quem, m.content
+from dm_messages m left join profiles p on p.id = m.user_id
+where m.thread_id = 'COLE_AQUI_O_target_id'
+order by m.created_at;
+```
+Para encerrar uma conversa abusiva: Table Editor > dm_threads > apagar a linha (as mensagens somem junto).
+
+Teste com pessoas reais (acrescente ao plano da seção 3):
+11. No grupo, tocar em um participante e ver o perfil.
+12. Pessoa A chama a pessoa B para conversa privada; B aceita; as duas trocam mensagens.
+13. Pessoa C recusa um pedido; conferir que quem pediu não consegue pedir de novo.
+14. Bloquear alguém dentro da conversa e conferir que ela some.

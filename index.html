@@ -134,11 +134,11 @@ nav .mais span{display:grid;place-items:center;width:50px;height:50px;margin:-26
 .splash{min-height:100vh;min-height:100dvh;display:grid;place-content:center;justify-items:center;gap:18px;margin-bottom:-92px}
 .splash b{font-size:1.5rem;letter-spacing:-.02em}
 .spin{width:26px;height:26px;border-radius:50%;border:3px solid var(--linha);border-top-color:var(--lima);animation:gira .8s linear infinite}
-#toasts{position:fixed;bottom:calc(88px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:40;display:grid;justify-items:center;gap:8px;padding:0 14px;pointer-events:none}
+#toasts{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:0;right:0;z-index:40;display:grid;justify-items:center;gap:8px;padding:0 14px;pointer-events:none}
 .toast{pointer-events:auto;max-width:440px;background:#22301f;color:var(--texto);border:1px solid #3d5a34;border-radius:14px;padding:11px 15px;font-size:.93rem;box-shadow:0 12px 32px rgba(0,0,0,.5);animation:entra .22s ease-out}
 .toast.erro{background:#3a1d19;border-color:#6b322b;color:#ffd0c9}
-.toast.sai{opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s}
-@keyframes entra{from{opacity:0;transform:translateY(10px)}}
+.toast.sai{opacity:0;transform:translateY(-8px);transition:opacity .25s,transform .25s}
+@keyframes entra{from{opacity:0;transform:translateY(-10px)}}
 #offbar{display:none;position:fixed;left:0;right:0;bottom:calc(66px + env(safe-area-inset-bottom,0px));z-index:12;text-align:center;background:#3a1d19;color:#ffd0c9;font-size:.85rem;padding:6px 12px}
 body.off #offbar{display:block}
 
@@ -161,6 +161,27 @@ body.off #offbar{display:block}
 .mapa{width:100%;height:220px;border:0;border-radius:16px;margin-top:10px;background:var(--card)}
 .clima{display:flex;gap:12px;align-items:center}.clima .ic{font-size:2rem}
 .lotado{color:#ffb4a8;font-weight:600}
+
+/* Participantes e conversas privadas */
+.plist{padding:6px}
+.pessoa{display:flex;align-items:center;gap:12px;width:100%;background:none;color:var(--texto);text-align:left;font-weight:400;padding:8px 10px;border-radius:12px}
+.pessoa:hover{background:rgba(255,255,255,.04)}
+.pessoa>span:not(.pav){flex:1;min-width:0;display:flex;flex-direction:column}
+.pessoa>.i{color:var(--mudo)}
+.pav{width:44px;height:44px;border-radius:50%;background:var(--lima) center/cover;color:var(--on-lima);display:grid;place-items:center;font-weight:700;font-size:1.1rem;flex:0 0 auto;overflow:hidden}
+.pav svg{width:100%;height:100%;display:block}
+.pav.g{width:88px;height:88px;font-size:2.2rem;margin:0 auto 10px}
+.pcard{text-align:center}.pcard .chips{justify-content:center}.pcard p{overflow-wrap:anywhere}
+.seg{display:flex;background:var(--card);border:1px solid var(--linha);border-radius:14px;padding:4px;margin:12px 0 16px}
+.seg button{flex:1;background:none;color:var(--mudo);min-height:40px;padding:6px;border-radius:10px;font-weight:600;display:flex;justify-content:center;align-items:center;gap:6px}
+.seg button.on{background:var(--card2);color:var(--texto)}
+.nb{background:var(--lima);color:var(--on-lima);border-radius:99px;min-width:18px;height:18px;font-size:.7rem;font-weight:700;font-style:normal;display:inline-grid;place-items:center;padding:0 5px}
+nav button{position:relative}nav .nb{position:absolute;top:5px;left:calc(50% + 6px)}
+.dmhead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.dmhead h2{margin:0;font-size:1.2rem;min-width:0;overflow-wrap:anywhere}
+.menu.inl{position:relative;top:0;right:0;margin-left:auto}.menu.inl summary{background:var(--card2)}
+.chat.dm{height:calc(100dvh - 370px);min-height:240px}
+.conv{display:flex;align-items:center;gap:12px}.conv>div{flex:1;min-width:0}.conv h3{margin:0;font-size:1.02rem}
 
 /* Janelas */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:grid;place-items:center;padding:16px;z-index:20;animation:some .15s ease-out}
@@ -224,7 +245,9 @@ const IC = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>',
   map: '<path d="m9 4-6 2.5v13L9 17l6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13M15 6.5v13"/>',
   cam: '<path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/>',
-  tree: '<path d="M12 3 6 11h3l-4 6h14l-4-6h3z"/><path d="M12 17v4"/>'
+  tree: '<path d="M12 3 6 11h3l-4 6h14l-4-6h3z"/><path d="M12 17v4"/>',
+  fwd: '<path d="m9 5 7 7-7 7"/>',
+  chat: '<path d="M4 5h16v11H10l-6 4z"/>'
 };
 const ic = (n, s = 20) => `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
 // ---------- Avisos, confirmações e botões ocupados ----------
@@ -254,7 +277,7 @@ const semNada = (icone, titulo, txt, botao = '') => `<div class="vazio"><span cl
 
 function pt(m) {
   m = String(m || '');
-  const t = [['Invalid login credentials','E-mail ou senha incorretos.'],['User already registered','Este e-mail já tem conta. Tente entrar.'],
+  const t = [['BLOQUEADO','Não é possível conversar com esta pessoa.'],['SEM_GRUPO','Vocês precisam estar no mesmo grupo para conversar em privado.'],['dm_','A conversa privada ainda não foi ativada no banco de dados.'],['Invalid login credentials','E-mail ou senha incorretos.'],['User already registered','Este e-mail já tem conta. Tente entrar.'],
     ['Email not confirmed','Confirme seu e-mail antes de entrar (olhe também a caixa de spam).'],['at least 6','A senha precisa ter pelo menos 6 caracteres.'],
     ['same as the old','A nova senha precisa ser diferente da antiga.'],['rate limit','Muitas tentativas. Aguarde alguns minutos e tente de novo.'],
     ['For security purposes','Muitas tentativas. Aguarde um minuto e tente de novo.'],['Failed to fetch','Sem conexão com a internet. Tente de novo.'],
@@ -496,8 +519,12 @@ function telaCriar() {
 }
 function telaComunidade() {
   if (S.group) return telaGrupo();
+  if (S.dm) return telaConversa();
+  const nDm = dmAvisos();
+  const abas = S.dmOff ? '' : `<div class="seg" role="tablist"><button role="tab" aria-selected="${S.comTab !== 'conversas'}" class="${S.comTab !== 'conversas' ? 'on' : ''}" onclick="S.comTab='grupos';render()">Grupos</button><button role="tab" aria-selected="${S.comTab === 'conversas'}" class="${S.comTab === 'conversas' ? 'on' : ''}" onclick="S.comTab='conversas';render()">Conversas${nDm ? `<i class="nb">${nDm}</i>` : ''}</button></div>`;
+  if (S.comTab === 'conversas' && !S.dmOff) return `<div class="wrap"><h2>Comunidade</h2>${abas}${conversasHtml()}</div>`;
   const meus = S.acts.filter(a => a.interests.some(i => i.user_id === S.user.id));
-  return `<div class="wrap"><h2>Meus grupos</h2><p class="meta">Atividades em que você entrou. Abra o grupo para conversar e votar na data.</p>
+  return `<div class="wrap"><h2>Comunidade</h2>${abas}<p class="meta">Atividades em que você entrou. Abra o grupo para ver os participantes, conversar e votar na data.</p>
   ${meus.length ? meus.map(a => `<div class="card"><h3>${esc(a.title)}</h3>
     <div class="info"><span>${ic('pin', 16)}${esc(a.city)}</span><span>${ic('cal', 16)}${dataCurta(a)}</span><span>${ic('users', 16)}${a.interests.length}${a.max_people ? '/' + a.max_people : ''}</span>${ativa(a) ? '' : '<span class="dif">Encerrada</span>'}</div>
     <p class="meta">${a.interests.map(i => esc(i.profiles?.name || 'Sem nome')).join(', ')}</p>
@@ -525,6 +552,7 @@ function telaGrupo() {
   ${a.meeting_point ? `<div class="meta" style="margin-top:6px">Encontro: ${esc(a.meeting_point)}</div>` : ''}
   <div class="meta" style="margin-top:6px">${mapaLink(a)}</div>
   ${mapaEmbed(a)}
+  ${participantesHtml(a)}
   <h3 class="sec-t">Previsão do tempo</h3><div class="card">${climaBox(a, false)}</div>
   <div class="card"><b>Dicas de segurança</b><p class="meta" style="margin:6px 0 0">Combine o primeiro encontro em local público, avise alguém de confiança sobre o local e o horário, leve água e confira a previsão do tempo. Emergência: 192 (SAMU), 193 (Bombeiros), 190 (Polícia).</p></div>
   <h3 class="sec-t">Datas</h3><div class="card">${ops}
@@ -698,7 +726,7 @@ async function salvaPerfil(e) {
   if (error) return say('Erro ao salvar: ' + pt(error.message), true);
   await loadProfile(); say('Perfil salvo.');
 }
-function go(t) { fechaCanal(); S.tab = t; S.edit = null; S.group = null; S.msg = null; render(); window.scrollTo(0,0); }
+function go(t) { fechaCanal(); fechaDm(); S.tab = t; S.edit = null; S.group = null; S.dm = null; S.verP = null; S.msg = null; render(); window.scrollTo(0,0); }
 
 // ---------- Grupo: chat e votação ----------
 function fechaCanal() { if (S.canal) { sb.removeChannel(S.canal); S.canal = null; } }
@@ -710,10 +738,10 @@ async function loadOpts() {
   const {data} = await sb.from('date_options').select('*, date_votes(user_id)').eq('activity_id', S.group).order('option_date');
   S.opts = data || [];
 }
-function renderChat() { const c = $('chat'); if (c) { c.innerHTML = chatHtml(); c.scrollTop = c.scrollHeight; } }
+function renderChat() { const c = $('chat'); if (c) { c.innerHTML = chatHtml(); c.scrollTop = c.scrollHeight; } renderDm(); }
 async function abrirGrupo(id) {
-  fechaCanal(); S.nota = null; S.group = id; S.msgs = []; S.opts = [];
-  await Promise.all([loadMsgs(), loadOpts()]);
+  fechaCanal(); fechaDm(); S.dm = null; S.verP = null; S.nota = null; S.group = id; S.msgs = []; S.opts = [];
+  await Promise.all([loadMsgs(), loadOpts(), loadParts(S.acts.find(a => a.id === id))]);
   render(); renderChat();
   S.canal = sb.channel('chat-' + id).on('postgres_changes', {event:'INSERT', schema:'public', table:'messages', filter:'activity_id=eq.' + id},
     async () => { await loadMsgs(); renderChat(); }).subscribe();
@@ -743,12 +771,139 @@ async function definirData(d) {
   await loadActs(); render(); renderChat();
 }
 
+// ---------- Participantes e conversas privadas ----------
+// Regras: só dá para chamar quem está em um grupo com você; a conversa só abre depois que a pessoa aceita;
+// bloquear encerra a conversa. As regras também são garantidas no banco (veja moderacao-e-testes.md).
+Object.assign(S, {parts: {}, dms: [], dmOff: false, dm: null, dmMsgs: [], dmCanal: null, dmtCanal: null, comTab: 'grupos', verP: null});
+const P_COLS = 'id, name, city, bio, interests, avatar_url, avatar, avatar_pref';
+const avatarEl = (p, cls) => usaAvatar(p) ? `<span class="${cls}">${avatarSvg(p.avatar)}</span>` : `<span class="${cls}" ${p?.avatar_url ? `style="background-image:url('${esc(p.avatar_url)}')"` : ''}>${p?.avatar_url ? '' : esc((p?.name || '?')[0].toUpperCase())}</span>`;
+async function loadParts(a) {
+  const ids = (a?.interests || []).map(i => i.user_id);
+  if (!ids.length) return;
+  const {data} = await sb.from('profiles').select(P_COLS).in('id', ids);
+  (data || []).forEach(p => S.parts[p.id] = p);
+}
+function participantesHtml(a) {
+  return `<h3 class="sec-t">Participantes (${a.interests.length})</h3><div class="card plist">${a.interests.map(i => {
+    const p = S.parts[i.user_id] || {name: i.profiles?.name};
+    const sub = [i.user_id === a.creator_id ? 'Organiza a atividade' : '', p.city || ''].filter(Boolean).map(esc).join(' · ');
+    return `<button class="pessoa" onclick="verPessoa('${i.user_id}')">${avatarEl(p, 'pav')}<span><b>${esc(p.name || 'Sem nome')}${i.user_id === S.user.id ? ' (você)' : ''}</b>${sub ? `<span class="meta">${sub}</span>` : ''}</span>${ic('fwd', 18)}</button>`; }).join('')}</div>`;
+}
+function verPessoa(uid) { S.verP = uid; render(); renderChat(); }
+function fechaPessoa() { S.verP = null; render(); renderChat(); }
+function pessoaHtml() {
+  const uid = S.verP; if (!uid) return '';
+  const p = S.parts[uid] || {}, eu = uid === S.user.id, t = dmCom(uid);
+  const rs = S.acts.filter(a => a.creator_id === uid).flatMap(a => a.reviews || []);
+  const nota = rs.length ? `<p class="meta"><span class="st">★</span> ${(rs.reduce((x, r) => x + r.rating, 0) / rs.length).toFixed(1).replace('.', ',')} nas atividades que organizou (${rs.length})</p>` : '';
+  let acao = '';
+  if (eu) acao = `<button class="full" onclick="go('perfil')">Editar meu perfil</button>`;
+  else if (S.dmOff) acao = '';
+  else if (!t || (t.status === 'recusada' && t.user_b === S.user.id)) acao = `<button class="full" onclick="pedirConversa('${uid}',this)">${ic('chat', 18)} Chamar para conversa privada</button><p class="meta">A conversa só abre se a pessoa aceitar.</p>`;
+  else if (t.status === 'aceita') acao = `<button class="full" onclick="abrirConversa('${t.id}')">${ic('chat', 18)} Abrir conversa privada</button>`;
+  else if (t.status === 'pendente' && t.user_b === S.user.id) acao = `<p class="meta">${esc(p.name || 'Esta pessoa')} quer conversar com você em privado.</p><div class="row"><button class="sec" onclick="responderConversa('${t.id}',false,this)">Recusar</button><button onclick="responderConversa('${t.id}',true,this)">Aceitar</button></div>`;
+  else if (t.status === 'pendente') acao = '<button class="full sec" disabled>Pedido enviado, aguardando resposta</button>';
+  else acao = '<p class="meta">Conversa privada indisponível com esta pessoa.</p>';
+  return `<div class="modal" role="dialog" aria-modal="true" aria-label="Perfil do participante" onclick="if(event.target===this)fechaPessoa()"><div class="card pcard">
+  ${avatarEl(p, 'pav g')}<h3>${esc(p.name || 'Sem nome')}</h3>${p.city ? `<div class="meta">${ic('pin', 14)} ${esc(p.city)}</div>` : ''}${nota}
+  ${p.bio ? `<p>${esc(p.bio)}</p>` : ''}${(p.interests || []).length ? `<div class="chips">${p.interests.map(x => `<span class="chip">${esc(x)}</span>`).join('')}</div>` : ''}
+  ${acao}<button class="sec full" onclick="fechaPessoa()">Fechar</button>
+  ${eu ? '' : `<button class="link" style="margin-top:10px;color:var(--erro)" onclick="bloquear('${uid}')">Bloquear esta pessoa</button>`}</div></div>`;
+}
+async function loadDms() {
+  const {data, error} = await sb.from('dm_threads').select(`*, a:profiles!user_a(${P_COLS}), b:profiles!user_b(${P_COLS})`).order('created_at', {ascending: false});
+  S.dmOff = !!error; S.dms = error ? [] : (data || []); // se o banco ainda não tem as tabelas, o recurso fica escondido
+  S.dms.forEach(t => { if (t.a) S.parts[t.a.id] = t.a; if (t.b) S.parts[t.b.id] = t.b; });
+}
+const dmOutro = t => t.user_a === S.user.id ? t.b : t.a;
+const dmOutroId = t => t.user_a === S.user.id ? t.user_b : t.user_a;
+const dmCom = uid => S.dms.find(t => t.user_a === uid || t.user_b === uid);
+const dmPend = t => t.status === 'pendente' && t.user_b === S.user.id;
+function dmNaoLida(t) {
+  if (t.status !== 'aceita' || !t.last_msg_at || t.last_msg_by === S.user.id || S.dm === t.id) return false;
+  const visto = t.user_a === S.user.id ? t.visto_a : t.visto_b;
+  return !visto || new Date(t.last_msg_at) > new Date(visto);
+}
+const dmAvisos = () => S.user ? S.dms.filter(t => dmPend(t) || dmNaoLida(t)).length : 0;
+function refreshDmBadge() { const b = $('dmN'); if (b) { const n = dmAvisos(); b.textContent = n; b.style.display = n ? 'inline-grid' : 'none'; } }
+function assinaDm() {
+  if (S.dmtCanal) { sb.removeChannel(S.dmtCanal); S.dmtCanal = null; }
+  if (S.dmOff) return;
+  S.dmtCanal = sb.channel('dmt-' + S.user.id).on('postgres_changes', {event: '*', schema: 'public', table: 'dm_threads'}, async () => {
+    const antes = dmAvisos(); await loadDms();
+    if (dmAvisos() > antes) toast('Novidade nas suas conversas privadas.');
+    refreshDmBadge();
+    if (S.tab === 'comunidade' && S.comTab === 'conversas' && !S.dm && !S.group) render(); // só redesenha a lista (não atrapalha quem está digitando)
+  }).subscribe();
+}
+function conversasHtml() {
+  const ord = [...S.dms].filter(t => t.status !== 'recusada').sort((x, y) => (dmPend(y) - dmPend(x)) || (new Date(y.last_msg_at || y.created_at) - new Date(x.last_msg_at || x.created_at)));
+  if (!ord.length) return semNada('chat', 'Nenhuma conversa privada', 'Abra um grupo, toque em um participante e chame para conversar. A conversa só abre se a pessoa aceitar.', `<button onclick="S.comTab='grupos';render()">Ver meus grupos</button>`);
+  return ord.map(t => { const p = dmOutro(t) || {}, nome = esc(p.name || 'Usuário');
+    if (dmPend(t)) return `<div class="card"><div class="conv">${avatarEl(p, 'pav')}<div><h3>${nome}</h3><div class="meta">Quer conversar com você em privado.</div></div></div>
+      <div class="row" style="margin-top:12px"><button class="sec" onclick="responderConversa('${t.id}',false,this)">Recusar</button><button onclick="responderConversa('${t.id}',true,this)">Aceitar</button></div></div>`;
+    if (t.status === 'pendente') return `<div class="card"><div class="conv">${avatarEl(p, 'pav')}<div><h3>${nome}</h3><div class="meta">Pedido enviado, aguardando resposta.</div></div></div></div>`;
+    return `<div class="card"><button class="pessoa" style="padding:0" onclick="abrirConversa('${t.id}')">${avatarEl(p, 'pav')}<span><b>${nome}</b><span class="meta">${dmNaoLida(t) ? 'Nova mensagem' : t.last_msg_at ? 'Última mensagem em ' + horaMsg(t.last_msg_at) : 'Conversa aceita. Diga um oi!'}</span></span>${dmNaoLida(t) ? '<i class="nb">1</i>' : ic('fwd', 18)}</button></div>`; }).join('');
+}
+async function pedirConversa(uid, btn) {
+  const solta = trava(btn);
+  const {error} = await sb.rpc('dm_pedir', {outro: uid, atividade: S.group});
+  if (error) { solta(); return toast(pt(error.message), true); }
+  await loadDms(); render(); renderChat(); toast('Pedido enviado. A conversa abre quando a pessoa aceitar.');
+}
+async function responderConversa(id, aceitar, btn) {
+  if (!aceitar && !await confirma('Recusar este pedido de conversa? A pessoa não poderá pedir de novo.', 'Recusar')) return;
+  const solta = trava(btn);
+  const {error} = await sb.rpc('dm_responder', {conversa: id, aceitar});
+  if (error) { solta(); return toast(pt(error.message), true); }
+  await loadDms();
+  if (aceitar) return abrirConversa(id);
+  S.verP = null; render(); renderChat(); toast('Pedido recusado.');
+}
+function fechaDm() { if (S.dmCanal) { sb.removeChannel(S.dmCanal); S.dmCanal = null; } }
+async function loadDmMsgs() {
+  const {data} = await sb.from('dm_messages').select('*').eq('thread_id', S.dm).order('created_at');
+  S.dmMsgs = data || [];
+}
+const dmVisto = id => sb.rpc('dm_visto', {conversa: id}).then(() => loadDms()).then(refreshDmBadge);
+async function abrirConversa(id) {
+  fechaCanal(); fechaDm(); S.verP = null; S.group = null; S.edit = null; S.tab = 'comunidade'; S.comTab = 'conversas'; S.dm = id; S.dmMsgs = [];
+  await loadDmMsgs(); render(); renderDm(); window.scrollTo(0, 0); dmVisto(id);
+  S.dmCanal = sb.channel('dm-' + id).on('postgres_changes', {event: 'INSERT', schema: 'public', table: 'dm_messages', filter: 'thread_id=eq.' + id},
+    async () => { await loadDmMsgs(); renderDm(); dmVisto(id); }).subscribe();
+}
+function dmChatHtml() {
+  return S.dmMsgs.length ? S.dmMsgs.map(m => `<div class="bolha ${m.user_id === S.user.id ? 'eu' : ''}">${esc(m.content)}<time>${horaMsg(m.created_at)}</time></div>`).join('')
+    : '<div class="vazio">Nenhuma mensagem ainda. Diga um oi!</div>';
+}
+function renderDm() { const c = $('dmchat'); if (c) { c.innerHTML = dmChatHtml(); c.scrollTop = c.scrollHeight; } }
+function telaConversa() {
+  const t = S.dms.find(x => x.id === S.dm);
+  if (!t || t.status !== 'aceita') return `<div class="wrap">${semNada('chat', 'Conversa indisponível', 'Esta conversa não existe mais ou ainda não foi aceita.', `<button onclick="go('comunidade')">Voltar para Conversas</button>`)}</div>`;
+  const p = dmOutro(t) || {}, uid = dmOutroId(t);
+  return `<div class="wrap"><button class="voltar" onclick="go('comunidade')">${ic('back', 18)} Conversas</button>
+  <div class="dmhead">${avatarEl(p, 'pav')}<h2>${esc(p.name || 'Usuário')}</h2>
+    <details class="menu inl"><summary aria-label="Mais opções">${ic('more')}</summary><div class="menu-l"><button onclick="verPessoa('${uid}')">Ver perfil</button><button onclick="denunciaDm('${t.id}','${uid}')">Denunciar conversa</button><button class="per" onclick="bloquear('${uid}')">Bloquear</button></div></details></div>
+  <p class="meta" style="margin-top:0">Conversa privada entre vocês dois. Nunca envie senhas, códigos ou dados bancários. Se algo incomodar, denuncie ou bloqueie no menu.</p>
+  <div id="dmchat" class="chat dm" aria-live="polite">${dmChatHtml()}</div>
+  <div class="envia"><input id="dmm" maxlength="1000" placeholder="Escreva uma mensagem" aria-label="Mensagem privada" autocomplete="off" enterkeyhint="send" onkeydown="if(event.key==='Enter')enviarDm()"><button onclick="enviarDm()" aria-label="Enviar mensagem">${ic('send')}</button></div></div>`;
+}
+async function enviarDm() {
+  const el = $('dmm'), v = el.value.trim(); if (!v) return; el.value = '';
+  const {error} = await sb.from('dm_messages').insert({thread_id: S.dm, user_id: S.user.id, content: v});
+  if (error) { el.value = v; return toast('Não foi possível enviar: ' + pt(error.message), true); }
+  await loadDmMsgs(); renderDm();
+}
+function denunciaDm(tid, uid) { S.rep = {tipo: 'mensagem', id: tid, user: uid, priv: true}; render(); renderChat(); }
+
 // ---------- Denúncia e bloqueio ----------
 async function loadBlocks() {
   const {data} = await sb.from('blocks').select('blocked_id, blocked_name').eq('blocker_id', S.user.id);
   S.blocks = data || [];
 }
 function nomeDe(uid) {
+  if (S.parts[uid]?.name) return S.parts[uid].name;
+  const t = dmCom(uid); if (t && dmOutro(t)?.name) return dmOutro(t).name;
   for (const a of S.acts) {
     if (a.creator_id === uid && a.creator?.name) return a.creator.name;
     const i = a.interests.find(x => x.user_id === uid && x.profiles?.name); if (i) return i.profiles.name;
@@ -767,7 +922,7 @@ function fechaRep() { S.rep = null; render(); renderChat(); }
 async function enviaDenuncia() {
   const r = S.rep;
   const {error} = await sb.from('reports').insert({reporter_id: S.user.id, target_type: r.tipo, target_id: r.id, reported_user_id: r.user,
-    reason: $('rm').value, details: $('rd').value.trim()});
+    reason: $('rm').value, details: (r.priv ? '[Conversa privada] ' : '') + $('rd').value.trim()});
   if (error) return toast('Não foi possível enviar: ' + pt(error.message), true);
   fechaRep(); toast('Denúncia enviada. Obrigado por ajudar a manter a comunidade segura.');
 }
@@ -776,7 +931,8 @@ async function bloquear(uid) {
   if (!await confirma('Bloquear ' + nome + '? Você não verá mais as atividades e mensagens dessa pessoa, e ela também não verá as suas.', 'Bloquear', true)) return;
   const {error} = await sb.from('blocks').insert({blocker_id: S.user.id, blocked_id: uid, blocked_name: nome});
   if (error) return toast('Erro ao bloquear: ' + pt(error.message), true);
-  await loadBlocks(); await loadActs();
+  await loadBlocks(); await loadActs(); await loadDms(); S.verP = null;
+  if (S.dm && !S.dms.some(t => t.id === S.dm)) { fechaDm(); S.dm = null; }
   if (S.group) { if (S.acts.some(a => a.id === S.group)) await loadMsgs(); else { fechaCanal(); S.group = null; } }
   render(); renderChat();
 }
@@ -851,7 +1007,8 @@ async function abreNotificacao(id, actId) {
   await sb.from('notifications').update({read: true}).eq('id', id);
   await loadNotifs(); fechaNotif(); refreshSino();
   S.tab = 'comunidade'; S.edit = null;
-  if (S.acts.some(a => a.id === actId)) await abrirGrupo(actId); else render();
+  if (S.acts.some(a => a.id === actId)) await abrirGrupo(actId);
+  else { fechaCanal(); fechaDm(); S.group = null; S.dm = null; S.comTab = 'conversas'; await loadDms(); render(); } // aviso de conversa privada
 }
 
 // ---------- App instalável ----------
@@ -874,7 +1031,7 @@ function render() {
   if (S.recovery) { $('app').innerHTML = telaNovaSenha(); return; }
   if (S.avEdit) { $('app').innerHTML = telaAvatar(); return; }
   const tela = {inicio:telaInicio, explorar:telaExplorar, criar:telaCriar, comunidade:telaComunidade, perfil:telaPerfil}[S.tab]();
-  $('app').innerHTML = `<main>${tela}</main>` + dl + `<nav aria-label="Navegação principal">${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${ic(i, 26)}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" ${S.tab===k?'aria-current="page"':''} onclick="go('${k}')">${ic(i, 22)}${n}</button>`).join('')}</nav>` + sinoHtml() + modalHtml();
+  $('app').innerHTML = `<main>${tela}</main>` + dl + `<nav aria-label="Navegação principal">${ABAS.map(([k,n,i]) => k === 'criar' ? `<button class="mais" onclick="go('criar')"><span>${ic(i, 26)}</span>${n}</button>` : `<button class="${S.tab===k?'on':''}" ${S.tab===k?'aria-current="page"':''} onclick="go('${k}')">${ic(i, 22)}${n}${k === 'comunidade' ? `<i id="dmN" class="nb" style="display:${dmAvisos() ? 'inline-grid' : 'none'}">${dmAvisos()}</i>` : ''}</button>`).join('')}</nav>` + sinoHtml() + modalHtml() + pessoaHtml();
 }
 // Fecha os menus "⋯" ao tocar fora deles
 document.addEventListener('click', e => document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }));
@@ -887,7 +1044,7 @@ sb.auth.onAuthStateChange((_ev, session) => {
   // setTimeout evita travar o Supabase ao fazer consultas dentro deste evento
   setTimeout(async () => {
     try {
-      if (S.user) { await loadProfile(); await loadBlocks(); await loadNotifs(); assinaNotif(); await loadActs(); } else { S.profile = null; S.acts = []; S.notifs = []; if (S.notifCanal) { sb.removeChannel(S.notifCanal); S.notifCanal = null; } }
+      if (S.user) { await loadProfile(); await loadBlocks(); await loadNotifs(); assinaNotif(); await loadActs(); await loadDms(); assinaDm(); } else { S.profile = null; S.acts = []; S.notifs = []; S.dms = []; S.dm = null; S.parts = {}; fechaDm(); if (S.dmtCanal) { sb.removeChannel(S.dmtCanal); S.dmtCanal = null; } if (S.notifCanal) { sb.removeChannel(S.notifCanal); S.notifCanal = null; } }
     } catch (e) { toast('Erro ao carregar: ' + pt(e.message), true); }
     render();
   }, 0);
